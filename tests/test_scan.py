@@ -358,6 +358,93 @@ class FetchParsingTests(unittest.TestCase):
         self.assertIn("operations", result.detail)
 
 
+class PublicPageTests(unittest.TestCase):
+    """公開版總覽頁：給沒讀過原始文件的人看的那一頁。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp()
+        cls.code, cls.snapshot, cls.out_dir = run_scan(cls.tmp, STRESS)
+        with open(os.path.join(cls.out_dir, "index.html"), encoding="utf-8") as handle:
+            cls.html = handle.read()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp)
+
+    def test_both_pages_written(self):
+        names = os.listdir(self.out_dir)
+        for expected in ("index.html", "console.html", "series.json", "latest.json"):
+            self.assertIn(expected, names)
+
+    def test_html_is_well_formed(self):
+        validator = _Validator()
+        validator.feed(self.html)
+        self.assertEqual(validator.errors, [])
+        self.assertEqual(validator.stack, [])
+
+    def test_bootstrap_data_is_parseable(self):
+        """fetch 失敗時（file:// 或離線）頁面靠這份內嵌資料，不能是壞的 JSON。"""
+        for marker in ('id="boot-snapshot"', 'id="boot-series"'):
+            start = self.html.index(marker)
+            start = self.html.index(">", start) + 1
+            end = self.html.index("</script>", start)
+            payload = json.loads(self.html[start:end].replace("<\\/", "</"))
+            self.assertTrue(payload)
+
+    def test_series_payload_shape(self):
+        with open(os.path.join(self.out_dir, "series.json"), encoding="utf-8") as handle:
+            series = json.load(handle)
+        for key in ("sofr_iorb", "hy_oas", "y30", "vix"):
+            self.assertIn(key, series)
+            self.assertEqual(len(series[key]["dates"]), len(series[key]["values"]))
+            self.assertLessEqual(len(series[key]["values"]), 180)
+
+    def test_severity_is_encoded_beyond_colour(self):
+        """警示與明確壓力在紅綠色盲下幾乎同色，嚴重度必須另有通道。"""
+        by_key = {i["key"]: i for i in self.snapshot["indicators"]}
+        self.assertEqual(by_key["y30"]["severity"], 4)
+        self.assertEqual(by_key["usdjpy"]["severity"], 0, "沒有閾值帶的指標不給嚴重度")
+        self.assertIn('aria-label="嚴重度', self.html)
+        self.assertIn("sev s", self.html)
+
+    def test_distance_to_threshold_present(self):
+        by_key = {i["key"]: i for i in self.snapshot["indicators"]}
+        self.assertIn("離", by_key["vix"]["distance_text"] + by_key["hy_oas"]["distance_text"])
+        track = by_key["hy_oas"]["track"]
+        self.assertTrue(track["segments"])
+        self.assertGreaterEqual(track["marker_pct"], 0)
+        self.assertLessEqual(track["marker_pct"], 100)
+
+    def test_no_unresolved_placeholders(self):
+        self.assertNotIn("__TILE_KEYS__", self.html)
+        self.assertNotIn("__TILE_WHY__", self.html)
+
+
+class RebuildTests(unittest.TestCase):
+    def test_rebuild_preserves_scan_time_and_changes(self):
+        """重畫頁面不是一次新的掃描，時間戳與變更清單都要沿用。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            run_scan(tmp, CALM)
+            _, second, out_dir = run_scan(tmp, STRESS)
+            self.assertTrue(second["changes"], "第二次掃描應該產生變更清單")
+
+            code = scan.main([
+                "--config-dir", os.path.join(BASE_DIR, "config"),
+                "--data-dir", os.path.join(tmp, "data"),
+                "--out-dir", out_dir,
+                "--rebuild", "--notify", "never", "--quiet",
+            ])
+            self.assertNotEqual(code, scan.EXIT_ERROR)
+            with open(os.path.join(out_dir, "latest.json"), encoding="utf-8") as handle:
+                rebuilt = json.load(handle)
+            self.assertEqual(rebuilt["scan_time"], second["scan_time"])
+            self.assertEqual(rebuilt["changes"], second["changes"])
+        finally:
+            shutil.rmtree(tmp)
+
+
 class SelfTestTests(unittest.TestCase):
     def test_shipped_config_passes(self):
         self.assertEqual(scan.main(["--self-test", "--quiet"]), 0)

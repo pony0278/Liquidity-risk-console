@@ -27,6 +27,7 @@ if BASE_DIR not in sys.path:
 from lrconsole import diff as diff_mod  # noqa: E402
 from lrconsole import history as history_mod  # noqa: E402
 from lrconsole import notify as notify_mod  # noqa: E402
+from lrconsole import public_page  # noqa: E402
 from lrconsole import render as render_mod  # noqa: E402
 from lrconsole.evaluate import build_snapshot, resolve_series  # noqa: E402
 from lrconsole.expr import ExprError, referenced_names  # noqa: E402
@@ -48,6 +49,9 @@ def parse_args(argv=None):
                         help="不連網，只用快取與 data/history.csv 重算")
     parser.add_argument("--no-fetch", action="store_true",
                         help="完全跳過抓取，純粹用 data/history.csv 重畫報表")
+    parser.add_argument("--rebuild", action="store_true",
+                        help="只重畫頁面（模板改動時用）。等同 --no-fetch，並沿用上一份"
+                             "快照的掃描時間與變更清單——重畫不是掃描，不該蓋掉這兩者")
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--history-days", type=int, default=1500,
@@ -56,6 +60,8 @@ def parse_args(argv=None):
                         help="auto＝只在有觸發或有變化時推播")
     parser.add_argument("--self-test", action="store_true",
                         help="只檢查設定檔與表達式，不抓資料、不寫報表")
+    parser.add_argument("--repo-url", default="https://github.com/pony0278/Liquidity-risk-console",
+                        help="公開版頁尾的原始碼連結")
     parser.add_argument("--quiet", action="store_true")
     return parser.parse_args(argv)
 
@@ -150,6 +156,16 @@ def main(argv=None):
     log = log_factory(args.quiet)
     scan_time = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
 
+    previous = history_mod.load_json(os.path.join(args.out_dir, "latest.json"))
+    inherited_changes = None
+    if args.rebuild:
+        args.no_fetch = True
+        if previous and previous.get("scan_time"):
+            # 重畫頁面不是一次新的掃描：時間戳與「與上次相比」都必須沿用，
+            # 否則每次改模板都會謊報掃描時間，並把真正的變更清單洗掉。
+            scan_time = previous["scan_time"]
+            inherited_changes = [tuple(c) for c in previous.get("changes", [])] or None
+
     log("== 流動性與尾部風險掃描 %s ==" % scan_time)
 
     indicator_cfg, rules_cfg = load_configs(args.config_dir)
@@ -207,8 +223,13 @@ def main(argv=None):
 
     log("\n[4/5] 套用規則")
     snapshot = build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_notes)
-    previous = history_mod.load_json(os.path.join(args.out_dir, "latest.json"))
-    changes = diff_mod.diff_snapshots(snapshot, previous)
+    if inherited_changes is not None:
+        changes = inherited_changes
+        log("  （重畫模式：沿用上一份快照的變更清單）")
+    else:
+        changes = diff_mod.diff_snapshots(snapshot, previous)
+    # 存進快照，重畫時才有得沿用。
+    snapshot["changes"] = [list(c) for c in changes]
 
     # 抓取「成功」但序列是空的（或整個沒有歷史）同樣是缺口。不另外標出來的話，
     # --no-fetch 或來源默默回空值時會得到一份全灰的報表卻回報離開碼 0。
@@ -229,11 +250,22 @@ def main(argv=None):
     os.makedirs(args.out_dir, exist_ok=True)
 
     html_text = render_mod.render_html(snapshot, changes)
-    for name in ("index.html", "console-%s.html" % date_tag):
+    for name in ("console.html", "console-%s.html" % date_tag):
         path = os.path.join(args.out_dir, name)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(html_text)
         log("  寫出 %s" % path)
+
+    # 公開版總覽（index.html）。序列另外存一份給火花線用，頁面會在載入時
+    # 重抓，所以即使 HTML 被快取，看到的仍是最新一次掃描。
+    series_payload = public_page.build_series_payload(series_map)
+    history_mod.save_json(os.path.join(args.out_dir, "series.json"), series_payload)
+    public_html = public_page.render_public_html(
+        snapshot, series_payload, changes, repo_url=args.repo_url)
+    path = os.path.join(args.out_dir, "index.html")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(public_html)
+    log("  寫出 %s（公開版）" % path)
 
     summary = diff_mod.render_markdown_summary(snapshot, changes)
     summary_path = os.path.join(args.out_dir, "summary-%s.md" % date_tag)

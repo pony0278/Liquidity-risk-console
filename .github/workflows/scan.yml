@@ -12,6 +12,14 @@ on:
         description: "忽略 3 天間隔，立刻掃一次"
         type: boolean
         default: true
+  # 改模板／規則時只重新發佈頁面，不重新抓資料。
+  push:
+    branches: [main]
+    paths:
+      - "lrconsole/**"
+      - "templates/**"
+      - "config/**"
+      - ".github/workflows/scan.yml"
 
 permissions:
   contents: write
@@ -25,6 +33,8 @@ concurrency:
 
 jobs:
   scan:
+    # push 事件只是改了模板，沒必要重抓一次資料。
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -91,3 +101,49 @@ jobs:
             --title "⚠ 流動性掃描：$(date -u +%Y-%m-%d) 有引信觸發" \
             --body-file "$summary" \
             --label "risk-scan" || echo "開 issue 失敗，略過（不影響掃描結果）。"
+
+  publish:
+    # 掃描完（或改完模板）就把 reports/ 發佈到 GitHub Pages。
+    # always()：push 事件時 scan 會被跳過，這裡仍要發佈。
+    needs: scan
+    if: always() && needs.scan.result != 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # 抓分支最新狀態，而不是觸發當下的 SHA——scan 這個 job 剛剛推了一個
+      # 新 commit，用觸發 SHA 會發佈到舊的報表。
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: 重畫頁面
+        run: |
+          # --rebuild 會沿用上一份快照的掃描時間與變更清單：重畫不是掃描，
+          # 謊報時間戳比頁面晚幾分鐘更新糟糕得多。離開碼 10/20/30 是正常結果。
+          python3 scan.py --rebuild --notify never || true
+          touch reports/.nojekyll
+
+      # enablement: 第一次跑時順便把 Pages 打開（來源設為 GitHub Actions）。
+      # 若組織政策擋住，到 Settings → Pages 手動把 Source 選成 "GitHub Actions"。
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

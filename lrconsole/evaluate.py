@@ -4,6 +4,8 @@
 reports/snapshot-*.json 拿出來重畫或比對，不必重抓資料。
 """
 
+from datetime import datetime, timezone
+
 from .expr import evaluate, evaluate_value, referenced_names
 from .series import Series, build_metrics
 
@@ -46,6 +48,60 @@ def _fmt_signed(value, decimals, unit=""):
     return text
 
 
+def _band_track(bands, value):
+    """把閾值帶攤成一條可畫的軌道，並算出「離下一個門檻還有多遠」。
+
+    這是給一般讀者看的關鍵資訊：與其記住「HY OAS 350 是門檻」，不如直接
+    講「現在 284，離門檻還有 66bps」。回傳 None 代表這格沒有閾值帶。
+    """
+    if not bands or value is None:
+        return None
+
+    edges = sorted({e for band in bands for e in (band.get("min"), band.get("max"))
+                    if e is not None})
+    if not edges:
+        return None
+
+    span = (edges[-1] - edges[0]) or abs(edges[0]) or 1.0
+    lo = min(edges[0] - span * 0.35, value - span * 0.1)
+    hi = max(edges[-1] + span * 0.35, value + span * 0.1)
+    width = (hi - lo) or 1.0
+
+    segments = []
+    for band in bands:
+        low = band.get("min", lo)
+        high = band.get("max", hi)
+        low = lo if low is None else max(low, lo)
+        high = hi if high is None else min(high, hi)
+        if high <= low:
+            continue
+        segments.append({
+            "status": band.get("status", "ok"),
+            "label": band.get("label") or STATUS_TEXT.get(band.get("status"), ""),
+            "start_pct": (low - lo) / width * 100.0,
+            "width_pct": (high - low) / width * 100.0,
+            "from": low,
+            "to": high,
+        })
+    segments.sort(key=lambda s: s["start_pct"])
+
+    above = [e for e in edges if e > value]
+    below = [e for e in edges if e < value]
+    next_edge = above[0] if above else None
+    prev_edge = below[-1] if below else None
+
+    return {
+        "lo": lo,
+        "hi": hi,
+        "marker_pct": max(0.0, min(100.0, (value - lo) / width * 100.0)),
+        "segments": segments,
+        "next_edge": next_edge,
+        "next_distance": None if next_edge is None else next_edge - value,
+        "prev_edge": prev_edge,
+        "prev_distance": None if prev_edge is None else value - prev_edge,
+    }
+
+
 def _match_bands(bands, value):
     if value is None:
         return None, None
@@ -69,6 +125,7 @@ def resolve_series(indicator_cfg, fetched, history, record_failures=True):
     """
     series_map = {}
     notes = {}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     for indicator in indicator_cfg:
         key = indicator["key"]
@@ -83,6 +140,10 @@ def resolve_series(indicator_cfg, fetched, history, record_failures=True):
                 "provider": result.provider if result else None,
                 "detail": (result.detail if result else "未嘗試"),
             }
+        if merged:
+            # 未來日期可能來自這次抓取，也可能是舊 history.csv 留下來的，
+            # 所以在合併之後再濾一次。
+            merged = Series([(d, v) for d, v in merged.points if d <= today])
         if merged:
             series_map[key] = merged
 
@@ -163,9 +224,33 @@ def _assess_indicator(indicator, series_map, metrics, notes):
     else:
         change_text = _fmt_signed(change_1, decimals, unit)
 
+    track = _band_track(indicator.get("bands"), value)
+    distance_text = ""
+    if track and track["next_distance"] is not None:
+        distance_text = "離 %s 還有 %s" % (
+            _fmt(track["next_edge"], decimals, unit),
+            _fmt(abs(track["next_distance"]), decimals, unit))
+    elif track and track["prev_distance"] is not None:
+        distance_text = "已超過 %s 門檻 %s" % (
+            _fmt(track["prev_edge"], decimals, unit),
+            _fmt(abs(track["prev_distance"]), decimals, unit))
+
+    stale_days = None
+    if series.latest_date():
+        try:
+            stale_days = (datetime.now(timezone.utc).date()
+                          - datetime.strptime(series.latest_date(), "%Y-%m-%d").date()).days
+        except ValueError:
+            stale_days = None
+
     note = notes.get(key, {})
     return {
         "key": key,
+        "track": track,
+        "stale_days": stale_days,
+        "distance_text": distance_text,
+        "severity": max(0, STATUS_ORDER.get(status, -1)) + 1 if status in STATUS_ORDER
+        and status not in ("unknown", "info") else 0,
         "label": indicator.get("label", key),
         "tier": indicator.get("tier"),
         "ext": bool(indicator.get("ext")),
@@ -228,6 +313,10 @@ def _verdict(level, ladder_titles, tier_status, indicators_by_key, fired, metric
             paragraphs.append(
                 "資金水管仍寬鬆——SOFR 在 IORB 之下 %.0f bps，隔夜擔保融資成本沒有緊張跡象。"
                 "這是判斷「不是流動性事件」最乾淨的證據。" % abs(sofr["value"]))
+        elif sofr["value"] == 0:
+            paragraphs.append(
+                "SOFR 與 IORB 齊平（0 bps）。還沒翻正，但寬鬆的緩衝剛好用完——"
+                "這格從負值走到零，本身就是水管在收緊的訊號，接下來盯的是它會不會站上正值。")
         else:
             paragraphs.append(
                 "SOFR 已站上 IORB %.0f bps（連續 %s 日為正）。這是水管層的直接訊號，"
@@ -302,6 +391,13 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
             "status": entry["status"],
             "label": driver["status_label"] if driver else STATUS_TEXT["unknown"],
             "readout": ("%s %s" % (driver["label"], driver["display"])) if driver else "—",
+            # 嚴重度用 1–4 的格數呈現，讓顏色以外還有一個可讀的通道——
+            # 警示（琥珀）與明確壓力（橘）在紅綠色盲下幾乎同色。
+            "severity": max(0, STATUS_ORDER.get(entry["status"], -1)) + 1
+            if entry["status"] not in ("unknown", "info") else 0,
+            "driver_key": driver["key"] if driver else None,
+            "driver_label": driver["label"] if driver else None,
+            "plain": meta.get("plain", ""),
         }
 
     tripwires = []

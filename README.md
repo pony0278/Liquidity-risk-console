@@ -93,11 +93,53 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
 
 ---
 
+## 2.5 公開網頁（GitHub Pages）
+
+`publish` job 會把 `reports/` 發佈到 GitHub Pages，網址是
+`https://<帳號>.github.io/<repo>/`，每次掃描後自動更新。
+
+第一次跑如果卡在權限，到 **Settings → Pages → Source** 手動選 `GitHub Actions`。
+
+頁面分兩層：
+
+| 網址 | 給誰看 |
+| --- | --- |
+| `/`（index.html） | **公開版總覽**——先講結論（第幾階、為什麼），再給六格關鍵指標，每格附閾值軌道、火花線與白話說明 |
+| `/console.html` | **完整版控制盤**——23 格指標、四條傳導鏈、擁擠層，密度優先 |
+| `/latest.json` · `/series.json` | 結構化資料，可自行接走 |
+
+### 「動態」是指什麼
+
+資料每 3 天更新一次，所以頁面**不是**即時報價。動態的部分是：頁面載入時
+會用 `fetch` 重抓 `latest.json` 與 `series.json`（帶時間戳避開快取），因此
+即使瀏覽器或 CDN 快取了 HTML，看到的仍是最新一次掃描；開著的分頁每 15
+分鐘也會自己重抓一次。
+
+`fetch` 失敗時（用 `file://` 直接開、或離線）會退回建置時內嵌在頁面裡的
+那份快照，頁面永遠不會是空白的。
+
+想要真正的即時盤中報價，需要付費的行情 API 加上一個代理伺服器——瀏覽器直接
+打 Yahoo／FRED 會被 CORS 擋下來。這套的定位是**趨勢與門檻距離**，不是報價機。
+
+### 可讀性上的取捨
+
+- **嚴重度不只靠顏色。** 警示（琥珀 `#9E6F1E`）與明確壓力（橘 `#B04E1E`）在
+  紅綠色盲下的 ΔE 只有 3.0，等於同一個顏色。所以嚴重度用 **1–4 格的方塊 +
+  文字標籤**表達，顏色只做強化。
+- **講「離門檻還有多遠」而不是只給數字。** 「HY OAS 284」對外人沒有意義，
+  「離 350 還有 66bps」才有。每格都畫出閾值軌道與現在的位置。
+- **資料太舊會標出來。** 超過 7 天沒更新的指標會標紅字提示，避免有人把
+  兩週前的 MOVE 當成當前值讀。
+
+---
+
 ## 3. 產出什麼
 
 | 檔案 | 內容 |
 | --- | --- |
-| `reports/index.html` | 最新的控制盤（永遠是這個檔名，書籤不會失效） |
+| `reports/index.html` | **公開版總覽**：先講結論，給沒讀過原始文件的人看 |
+| `reports/console.html` | **完整版控制盤**：密度優先，23 格指標與傳導鏈細節 |
+| `reports/series.json` | 火花線用的精簡序列（近 180 個觀測） |
 | `reports/console-YYYY-MM-DD.html` | 當次存檔 |
 | `reports/summary-YYYY-MM-DD.md` | 純文字摘要，適合貼進筆記或推播 |
 | `reports/latest.json` · `snapshot-YYYY-MM-DD.json` | 結構化判定，供下次 diff 或自行分析 |
