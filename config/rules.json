@@ -1,6 +1,5 @@
 {
   "_comment": "所有判定邏輯集中在這裡。expr 可用的變數見 README「表達式變數」一節：<key>、<key>_d1、<key>_pct1、<key>_d5、<key>_pct5、<key>_d20、<key>_pct20、<key>_dd60、<key>_pos_streak、<key>_up_streak、<key>_max250、<key>_min250。任一引用變數無資料時，該條規則判為 unknown（不會誤觸發，也不會被當成已解除）。",
-
   "tripwires": [
     {
       "id": "hy_350",
@@ -45,7 +44,6 @@
       "desc": "進入去槓桿階的門票。MOVE 通常先動。"
     }
   ],
-
   "ladder": [
     {
       "level": 1,
@@ -53,7 +51,10 @@
       "signal": "長債殖利率 · 期限溢價 · 曲線形狀",
       "expr": "true",
       "readout": "y30 %.2f%% · 2s30s %.0fbps",
-      "readout_vars": ["y30", "slope_2s30s"]
+      "readout_vars": [
+        "y30",
+        "slope_2s30s"
+      ]
     },
     {
       "level": 2,
@@ -61,7 +62,9 @@
       "signal": "HY OAS > 450bps",
       "expr": "hy_oas > 450",
       "readout": "現 %.0fbps",
-      "readout_vars": ["hy_oas"]
+      "readout_vars": [
+        "hy_oas"
+      ]
     },
     {
       "level": 3,
@@ -69,7 +72,9 @@
       "signal": "VIX > 30 · carry unwind · 相關性 = 1",
       "expr": "vix > 30 or usdjpy_pct1 <= -2",
       "readout": "現 VIX %.2f",
-      "readout_vars": ["vix"]
+      "readout_vars": [
+        "vix"
+      ]
     },
     {
       "level": 4,
@@ -77,7 +82,9 @@
       "signal": "SOFR−IORB 轉正 · SRF 暴用",
       "expr": "sofr_iorb_pos_streak >= 3 or srf > 50",
       "readout": "現 %.0fbps",
-      "readout_vars": ["sofr_iorb"]
+      "readout_vars": [
+        "sofr_iorb"
+      ]
     },
     {
       "level": 5,
@@ -88,32 +95,215 @@
       "readout_vars": []
     }
   ],
-
   "chains": [
     {
       "id": "A",
       "title": "鏈 A — 期限溢價衝擊",
       "note": "實例教材：2022 英國 gilt／LDI 事件——長債殖利率跳升 → 退休金槓桿長存續期部位被追繳 → 被迫拋售長債 → 殖利率再升 → 螺旋 → 央行緊急進場。這是節點 04→06 的完整示範。歷史類比則更像 1994 債券大屠殺、2013 taper tantrum、2023/10：痛，但未演成系統性危機。",
       "nodes": [
-        { "step": "01 起因", "label": "財政供給 ＋ 縮表 ＋ 無前瞻指引", "cond": "結構性背景（人工維護）", "default_state": "live" },
-        { "step": "02", "label": "長端殖利率跳升", "cond": "觸發條件：30Y > 5.0% 或 2s30s > 80bps", "expr": "y30 > 5.0 or slope_2s30s > 80", "jump": "g-y30" },
-        { "step": "03", "label": "高倍數股估值壓縮", "cond": "觸發條件：Nasdaq 100 自 60 日高點回落 > 5%", "expr": "ndx_dd60 <= -5", "jump": "g-y10" },
-        { "step": "04", "label": "企業再融資成本上升", "cond": "觸發條件：HY OAS > 350bps", "expr": "hy_oas > 350", "jump": "g-hy_oas" },
-        { "step": "05", "label": "槓桿長債部位追繳", "cond": "觸發條件：MOVE > 130 或 SRF > $20B", "expr": "move > 130 or srf > 20", "jump": "g-move" },
-        { "step": "06 質變", "label": "資金水管斷裂", "cond": "觸發條件：SOFR−IORB 由負轉正", "expr": "sofr_iorb > 0", "jump": "g-sofr_iorb" }
+        {
+          "step": "01 起因",
+          "label": "財政供給 ＋ 縮表 ＋ 無前瞻指引",
+          "cond": "結構性背景（人工維護）",
+          "default_state": "live"
+        },
+        {
+          "step": "02",
+          "label": "長端殖利率跳升",
+          "cond": "觸發條件：30Y > 5.0% 或 2s30s > 80bps",
+          "expr": "y30 > 5.0 or slope_2s30s > 80",
+          "jump": "g-y30"
+        },
+        {
+          "step": "03",
+          "label": "高倍數股估值壓縮",
+          "cond": "觸發條件：Nasdaq 100 自 60 日高點回落 > 5%",
+          "expr": "ndx_dd60 <= -5",
+          "jump": "g-y10"
+        },
+        {
+          "step": "04",
+          "label": "企業再融資成本上升",
+          "cond": "觸發條件：HY OAS > 350bps",
+          "expr": "hy_oas > 350",
+          "jump": "g-hy_oas"
+        },
+        {
+          "step": "05",
+          "label": "槓桿長債部位追繳",
+          "cond": "觸發條件：MOVE > 130 或 SRF > $20B",
+          "expr": "move > 130 or srf > 20",
+          "jump": "g-move"
+        },
+        {
+          "step": "06 質變",
+          "label": "資金水管斷裂",
+          "cond": "觸發條件：SOFR−IORB 由負轉正",
+          "expr": "sofr_iorb > 0",
+          "jump": "g-sofr_iorb"
+        }
       ]
     },
     {
       "id": "B",
       "title": "鏈 B — 日圓 carry unwind",
-      "note": "這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 60，聯準會從未進場救 repo，約一週內自行修正。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。",
+      "note": "這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 65，聯準會從未進場救 repo，數週內自行修復。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。下面兩次是這條鏈實際走完的樣子——重點不在跌幅，在於「日圓出現在第幾幕」：1998 它是最後一幕（跌勢已走 11 週），2024 它是第一幕。等日圓告訴你要跑，在 1998 會晚兩個半月、而且賣在最低點。",
       "nodes": [
-        { "step": "01 觸發器", "label": "BOJ 升息或當局干預", "cond": "已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157", "default_state": "live", "jump": "g-usdjpy" },
-        { "step": "02", "label": "日圓急升", "cond": "觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作）", "expr": "usdjpy_pct1 <= -2", "jump": "g-usdjpy" },
-        { "step": "03", "label": "匯損 ＋ 追繳保證金", "cond": "觸發條件：USD/JPY 5 日 −4% 以上", "expr": "usdjpy_pct5 <= -4" },
-        { "step": "04", "label": "買回日圓螺旋（反身性）", "cond": "觸發條件：5 日 −6% 且 VIX > 25", "expr": "usdjpy_pct5 <= -6 and vix > 25" },
-        { "step": "05", "label": "全球同步平倉", "cond": "觸發條件：VIX > 30 且日經自 60 日高點 −10%", "expr": "vix > 30 and n225_dd60 <= -10", "jump": "g-vix" },
-        { "step": "06", "label": "相關性 = 1", "cond": "觸發條件：VIX > 40（連黃金、公債都被拋售換現金）", "expr": "vix > 40" }
+        {
+          "step": "01 觸發器",
+          "label": "BOJ 升息或當局干預",
+          "cond": "已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157",
+          "default_state": "live",
+          "jump": "g-usdjpy"
+        },
+        {
+          "step": "02",
+          "label": "日圓急升",
+          "cond": "觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作）",
+          "expr": "usdjpy_pct1 <= -2",
+          "jump": "g-usdjpy"
+        },
+        {
+          "step": "03",
+          "label": "匯損 ＋ 追繳保證金",
+          "cond": "觸發條件：USD/JPY 5 日 −4% 以上",
+          "expr": "usdjpy_pct5 <= -4"
+        },
+        {
+          "step": "04",
+          "label": "買回日圓螺旋（反身性）",
+          "cond": "觸發條件：5 日 −6% 且 VIX > 25",
+          "expr": "usdjpy_pct5 <= -6 and vix > 25"
+        },
+        {
+          "step": "05",
+          "label": "全球同步平倉",
+          "cond": "觸發條件：VIX > 30 且日經自 60 日高點 −10%",
+          "expr": "vix > 30 and n225_dd60 <= -10",
+          "jump": "g-vix"
+        },
+        {
+          "step": "06",
+          "label": "相關性 = 1",
+          "cond": "觸發條件：VIX > 40（連黃金、公債都被拋售換現金）",
+          "expr": "vix > 40"
+        }
+      ],
+      "precedents": [
+        {
+          "name": "1998 · 俄羅斯違約 ／ LTCM",
+          "verdict": "咬到融資層 → 變成真危機",
+          "severity": "press",
+          "outcome": "S&P −19.3%（收盤基準，差 0.7% 未達熊市定義）",
+          "shape": "雙底，中間有 +9% 假反彈",
+          "length": "12 週見底 · 4 個月收復",
+          "yen_act": "第 12 週 — 最後一幕",
+          "steps": [
+            {
+              "date": "1998-07-17",
+              "week": "第 0 週",
+              "label": "S&P 見頂 1,186.75",
+              "kind": "peak"
+            },
+            {
+              "date": "1998-08-17",
+              "week": "第 4 週",
+              "label": "俄羅斯違約、盧布貶值 70%+，信用利差大幅擴張",
+              "kind": "credit"
+            },
+            {
+              "date": "1998-08-31",
+              "week": "第 6 週",
+              "label": "單日 −6.8%，收盤低點 957.28（−19.3%）",
+              "kind": "low"
+            },
+            {
+              "date": "1998-09",
+              "week": "第 7–9 週",
+              "label": "反彈約 +9%——很多人以為結束了",
+              "kind": "bounce"
+            },
+            {
+              "date": "1998-09-23",
+              "week": "第 10 週",
+              "label": "LTCM 紓困（14 家銀行 $3.6B）· 9/29 Fed 首次降息",
+              "kind": "policy"
+            },
+            {
+              "date": "1998-10-07",
+              "week": "第 12 週",
+              "label": "日圓單日 −7%，史上最大單日波動",
+              "kind": "yen"
+            },
+            {
+              "date": "1998-10-08",
+              "week": "第 12 週",
+              "label": "盤中二次探底 923.32（−22%），最終底部",
+              "kind": "low"
+            },
+            {
+              "date": "1998-10-15",
+              "week": "第 13 週",
+              "label": "Fed 會議間緊急降息 → 當天 +4.2%，V 轉",
+              "kind": "policy"
+            },
+            {
+              "date": "1998-11-23",
+              "week": "第 19 週",
+              "label": "創歷史新高",
+              "kind": "recover"
+            }
+          ],
+          "lesson": "領先的是信用不是日圓：俄羅斯違約在第 4 週，日圓暴漲在第 12 週、離最終底部只剩 1 天。而且最痛的 8/31 是單一一天，真正折磨人的是九月那段假反彈。"
+        },
+        {
+          "name": "2024/8 · BOJ 升息 ＋ 弱非農",
+          "verdict": "沒碰到融資層 → 自行修復",
+          "severity": "watch",
+          "outcome": "S&P −8.5%（收盤基準）· 日經 −26%",
+          "shape": "連三天崩跌後 V 轉",
+          "length": "3 週見底 · 約 6 週創新高",
+          "yen_act": "第 3 週 — 第一幕（觸發者）",
+          "steps": [
+            {
+              "date": "2024-07-11",
+              "week": "第 0 週",
+              "label": "日經見頂 42,224；S&P 7/16 見頂 5,667",
+              "kind": "peak"
+            },
+            {
+              "date": "2024-07-31",
+              "week": "第 3 週",
+              "label": "BOJ 升息 0.10% → 0.25%（前月已干預約 ¥5.5兆）",
+              "kind": "yen"
+            },
+            {
+              "date": "2024-08-02",
+              "week": "第 3 週",
+              "label": "非農 114K，遠低於預期 175K → 押 Fed 降息，利差雙向壓縮",
+              "kind": "policy"
+            },
+            {
+              "date": "2024-08-05",
+              "week": "第 3 週",
+              "label": "日經 −12.4%（1987 以來最慘）· S&P −3.0% · VIX 盤中 >65 · 黃金同步下跌",
+              "kind": "low"
+            },
+            {
+              "date": "2024-08-06",
+              "week": "第 4 週",
+              "label": "日經 +10.2%，隔天就反轉",
+              "kind": "bounce"
+            },
+            {
+              "date": "2024-08-底",
+              "week": "第 7 週",
+              "label": "S&P 收復全部跌幅；Fed 從未進場救 repo",
+              "kind": "recover"
+            }
+          ],
+          "lesson": "日圓 7/29→8/5 升值 6.15%，是這次的起因而非結局。信用利差全程沒動，所以它關在匯率與股市裡，三週結束。"
+        }
       ]
     },
     {
@@ -121,12 +311,46 @@
       "title": "鏈 C — AI 從股價事件變成信用事件",
       "note": "目前最被低估的傳導路徑。市場把 AI 當純上漲題材，真正的風險在融資層——它不會只是某檔晶片股跌幾趴，而是變成 Tier 2 信用事件，那才會真正擴散。關鍵背離：亞洲半導體在打崩盤級的架，而 HY OAS 仍在低檔，就證明它仍關在產業籠子裡。",
       "nodes": [
-        { "step": "01 起因", "label": "AI capex 以舉債支應", "cond": "結構性背景（人工維護）", "default_state": "live" },
-        { "step": "02", "label": "科技／超大規模業者利差跑輸", "cond": "觸發條件：IG OAS 20 日擴張 > 10bps", "expr": "ig_oas_d20 > 10", "jump": "g-ig_oas" },
-        { "step": "03", "label": "CCC／科技利差擴張", "cond": "觸發條件：CCC OAS > 900bps 或 20 日擴張 > 50bps", "expr": "ccc_oas > 900 or ccc_oas_d20 > 50", "jump": "g-ccc_oas" },
-        { "step": "04", "label": "指數層級信用轉折", "cond": "觸發條件：HY OAS > 450bps", "expr": "hy_oas > 450", "jump": "g-hy_oas" },
-        { "step": "05", "label": "私募信用／BDC 壓力", "cond": "觸發條件：HY − IG 差 > 400bps", "expr": "hy_ig > 400", "jump": "g-hy_ig" },
-        { "step": "06", "label": "廣泛信用緊縮", "cond": "觸發條件：HY OAS > 600bps", "expr": "hy_oas > 600" }
+        {
+          "step": "01 起因",
+          "label": "AI capex 以舉債支應",
+          "cond": "結構性背景（人工維護）",
+          "default_state": "live"
+        },
+        {
+          "step": "02",
+          "label": "科技／超大規模業者利差跑輸",
+          "cond": "觸發條件：IG OAS 20 日擴張 > 10bps",
+          "expr": "ig_oas_d20 > 10",
+          "jump": "g-ig_oas"
+        },
+        {
+          "step": "03",
+          "label": "CCC／科技利差擴張",
+          "cond": "觸發條件：CCC OAS > 900bps 或 20 日擴張 > 50bps",
+          "expr": "ccc_oas > 900 or ccc_oas_d20 > 50",
+          "jump": "g-ccc_oas"
+        },
+        {
+          "step": "04",
+          "label": "指數層級信用轉折",
+          "cond": "觸發條件：HY OAS > 450bps",
+          "expr": "hy_oas > 450",
+          "jump": "g-hy_oas"
+        },
+        {
+          "step": "05",
+          "label": "私募信用／BDC 壓力",
+          "cond": "觸發條件：HY − IG 差 > 400bps",
+          "expr": "hy_ig > 400",
+          "jump": "g-hy_ig"
+        },
+        {
+          "step": "06",
+          "label": "廣泛信用緊縮",
+          "cond": "觸發條件：HY OAS > 600bps",
+          "expr": "hy_oas > 600"
+        }
       ]
     },
     {
@@ -134,75 +358,156 @@
       "title": "鏈 D — 縮表 → 準備金 → 水管",
       "note": "這是唯一一條會直接走進 Tier 1 的鏈，也是唯一能讓「資金水管」從綠轉黃的機制。緩衝墊（ON RRP）一旦歸零，縮表接下來會直接咬進準備金。這條鏈與鏈 A 的節點 01 共用同一個起因，兩者會互相加強。",
       "nodes": [
-        { "step": "01 起因", "label": "縮表持續 ／ 減持長天期公債", "cond": "政策背景（人工維護）", "default_state": "live" },
-        { "step": "02", "label": "ON RRP 緩衝墊消失", "cond": "觸發條件：ON RRP < $50B", "expr": "rrp < 50", "jump": "g-rrp" },
-        { "step": "03", "label": "準備金下降至稀缺", "cond": "觸發條件：WRESBAL 20 期變動 < −$200B", "expr": "reserves_d20 < -200", "jump": "g-reserves" },
-        { "step": "04", "label": "SOFR−IORB 由負轉正", "cond": "觸發條件：翻正並持續 3 日以上", "expr": "sofr_iorb_pos_streak >= 3", "jump": "g-sofr_iorb" },
-        { "step": "05", "label": "SRF 暴用 → repo 危機", "cond": "觸發條件：SRF > $50B（2019/9 級別）", "expr": "srf > 50", "jump": "g-srf" }
+        {
+          "step": "01 起因",
+          "label": "縮表持續 ／ 減持長天期公債",
+          "cond": "政策背景（人工維護）",
+          "default_state": "live"
+        },
+        {
+          "step": "02",
+          "label": "ON RRP 緩衝墊消失",
+          "cond": "觸發條件：ON RRP < $50B",
+          "expr": "rrp < 50",
+          "jump": "g-rrp"
+        },
+        {
+          "step": "03",
+          "label": "準備金下降至稀缺",
+          "cond": "觸發條件：WRESBAL 20 期變動 < −$200B",
+          "expr": "reserves_d20 < -200",
+          "jump": "g-reserves"
+        },
+        {
+          "step": "04",
+          "label": "SOFR−IORB 由負轉正",
+          "cond": "觸發條件：翻正並持續 3 日以上",
+          "expr": "sofr_iorb_pos_streak >= 3",
+          "jump": "g-sofr_iorb"
+        },
+        {
+          "step": "05",
+          "label": "SRF 暴用 → repo 危機",
+          "cond": "觸發條件：SRF > $50B（2019/9 級別）",
+          "expr": "srf > 50",
+          "jump": "g-srf"
+        }
       ]
     }
   ],
-
   "crowding": [
     {
       "title": "AI／半導體估值 ＋ 債務融資",
       "state_expr": "sox_dd60 <= -10",
-      "state_true": { "level": "press", "text": "進行中" },
-      "state_false": { "level": "watch", "text": "引信累積中" },
+      "state_true": {
+        "level": "press",
+        "text": "進行中"
+      },
+      "state_false": {
+        "level": "watch",
+        "text": "引信累積中"
+      },
       "density": "超大規模業者 capex 以發債支應；信用利差已開始跑輸大盤。",
       "trigger": "guidance 不再上調；中國 DUV 微影機進展；單一名字失望。",
       "live_readout": "SOX 自 60 日高點 %.1f%% · Nasdaq 100 %.1f%%",
-      "live_vars": ["sox_dd60", "ndx_dd60"]
+      "live_vars": [
+        "sox_dd60",
+        "ndx_dd60"
+      ]
     },
     {
       "title": "日圓 carry trade",
       "state_expr": "usdjpy >= 158",
-      "state_true": { "level": "watch", "text": "引信極滿" },
-      "state_false": { "level": "ok", "text": "引信縮短" },
+      "state_true": {
+        "level": "watch",
+        "text": "引信極滿"
+      },
+      "state_false": {
+        "level": "ok",
+        "text": "引信縮短"
+      },
       "density": "利差極大 → 部位持續累積。水位越高，引信越長越滿。",
       "trigger": "BOJ 升息或當局干預造成日圓瞬間急升。",
       "live_readout": "USD/JPY %.2f · 5 日 %+.2f%%",
-      "live_vars": ["usdjpy", "usdjpy_pct5"]
+      "live_vars": [
+        "usdjpy",
+        "usdjpy_pct5"
+      ]
     },
     {
       "title": "公債基差交易",
       "state_expr": "move > 120",
-      "state_true": { "level": "press", "text": "壓力升高" },
-      "state_false": { "level": "watch", "text": "需留意" },
+      "state_true": {
+        "level": "press",
+        "text": "壓力升高"
+      },
+      "state_false": {
+        "level": "watch",
+        "text": "需留意"
+      },
       "density": "對沖基金高槓桿的長債多基差部位。現代版的英國 LDI。",
       "trigger": "長端續噴 → 追繳保證金 → 被迫拋售長債 → 螺旋。",
       "live_readout": "MOVE %.1f · 30Y %.2f%%",
-      "live_vars": ["move", "y30"]
+      "live_vars": [
+        "move",
+        "y30"
+      ]
     },
     {
       "title": "銀行 AFS／HTM 債券帳",
       "state_expr": "y30 >= 5.2",
-      "state_true": { "level": "press", "text": "未實現虧損擴大" },
-      "state_false": { "level": "watch", "text": "需留意" },
+      "state_true": {
+        "level": "press",
+        "text": "未實現虧損擴大"
+      },
+      "state_false": {
+        "level": "watch",
+        "text": "需留意"
+      },
       "density": "長天期債券未實現虧損隨 30Y 上升擴大。2023 SVB 的完整機制。",
       "trigger": "30Y 站穩 5.2% 以上並黏著；區域銀行存款外流。",
       "live_readout": "30Y %.2f%% · 20 日 %+.0fbps",
-      "live_vars": ["y30", "y30_d20_bps"]
+      "live_vars": [
+        "y30",
+        "y30_d20_bps"
+      ]
     },
     {
       "title": "指數集中度",
       "state_expr": "ndx_dd60 <= -5",
-      "state_true": { "level": "press", "text": "進行中" },
-      "state_false": { "level": "watch", "text": "需留意" },
+      "state_true": {
+        "level": "press",
+        "text": "進行中"
+      },
+      "state_false": {
+        "level": "watch",
+        "text": "需留意"
+      },
       "density": "領漲高度集中於 AI 權值股；非權值股獲利成長預期偏高。",
       "trigger": "單一 AI 名字的失望即可瀑布化。",
       "live_readout": "Nasdaq 100 自 60 日高點 %.1f%%",
-      "live_vars": ["ndx_dd60"]
+      "live_vars": [
+        "ndx_dd60"
+      ]
     },
     {
       "title": "私募信用／BDC",
       "state_expr": "hy_ig > 300",
-      "state_true": { "level": "watch", "text": "分化擴大" },
-      "state_false": { "level": "ok", "text": "早期分化" },
+      "state_true": {
+        "level": "watch",
+        "text": "分化擴大"
+      },
+      "state_false": {
+        "level": "ok",
+        "text": "早期分化"
+      },
       "density": "贖回隊伍變長；AI 取代 SaaS 的敘事已寫進部分公司的前瞻指引。",
       "trigger": "再融資窗口；AI 供給潮推升整體信用利差。",
       "live_readout": "HY − IG %.0fbps · CCC %.0fbps",
-      "live_vars": ["hy_ig", "ccc_oas"]
+      "live_vars": [
+        "hy_ig",
+        "ccc_oas"
+      ]
     }
   ]
 }

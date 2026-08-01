@@ -421,6 +421,53 @@ class PublicPageTests(unittest.TestCase):
         self.assertNotIn("__TILE_WHY__", self.html)
 
 
+class PrecedentTests(unittest.TestCase):
+    """傳導鏈的歷史先例——重點是「日圓在第幾幕」要真的被畫出來。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp()
+        cls.code, cls.snapshot, cls.out_dir = run_scan(cls.tmp, CALM)
+        cls.chain_b = {c["id"]: c for c in cls.snapshot["chains"]}["B"]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp)
+
+    def test_precedents_reach_the_snapshot(self):
+        names = [p["name"] for p in self.chain_b["precedents"]]
+        self.assertEqual(len(names), 2)
+        self.assertTrue(any("1998" in n for n in names))
+        self.assertTrue(any("2024" in n for n in names))
+
+    def test_each_precedent_marks_the_yen_step(self):
+        """沒有 kind=yen 的步驟，整段就失去意義——那格才是要對比的東西。"""
+        for case in self.chain_b["precedents"]:
+            kinds = [s.get("kind") for s in case["steps"]]
+            self.assertIn("yen", kinds, "%s 沒有標出日圓那一幕" % case["name"])
+            self.assertTrue(case.get("yen_act"), "%s 缺 yen_act" % case["name"])
+
+    def test_the_two_cases_put_the_yen_in_opposite_acts(self):
+        by_name = {p["name"]: p for p in self.chain_b["precedents"]}
+        late = next(v for k, v in by_name.items() if "1998" in k)
+        early = next(v for k, v in by_name.items() if "2024" in k)
+        yen_index = lambda c: [s.get("kind") for s in c["steps"]].index("yen")  # noqa: E731
+        self.assertGreater(yen_index(late), yen_index(early),
+                           "1998 的日圓應該落在比 2024 更後面的位置")
+        self.assertIn("最後一幕", late["yen_act"])
+        self.assertIn("第一幕", early["yen_act"])
+
+    def test_rendered_in_both_pages(self):
+        for name in ("console.html", "index.html"):
+            with open(os.path.join(self.out_dir, name), encoding="utf-8") as handle:
+                html_text = handle.read()
+            self.assertIn("k-yen", html_text, "%s 沒有畫出日圓那一幕" % name)
+            self.assertIn("1998", html_text)
+            validator = _Validator()
+            validator.feed(html_text)
+            self.assertEqual(validator.errors, [], "%s 標籤不完整" % name)
+
+
 class RebuildTests(unittest.TestCase):
     def test_rebuild_preserves_scan_time_and_changes(self):
         """重畫頁面不是一次新的掃描，時間戳與變更清單都要沿用。"""

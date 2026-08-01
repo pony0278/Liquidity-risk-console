@@ -464,6 +464,9 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
             "id": chain["id"],
             "title": chain["title"],
             "note": chain.get("note", ""),
+            # 歷史先例：這條鏈實際走完時的形狀。重點不是跌幅，是各個節點
+            # 出現的順序——「日圓在第幾幕」決定它是領先訊號還是落後訊號。
+            "precedents": chain.get("precedents", []),
             "nodes": nodes,
             "live": live_count,
             "total": len(nodes),

@@ -200,6 +200,64 @@ def _gauges(snapshot):
         '</section>' % "\n".join(rows))
 
 
+_STEP_KIND = {
+    "peak": "見頂", "credit": "信用", "low": "低點", "bounce": "反彈",
+    "policy": "政策", "yen": "日圓", "recover": "收復",
+}
+
+
+def _precedents(chain):
+    """歷史先例：這條鏈實際走完時的形狀。
+
+    重點不是跌了幾趴，而是各節點出現的順序——同一條鏈裡，日圓可能是
+    第一幕（2024，領先訊號）也可能是最後一幕（1998，落後到只剩一天）。
+    """
+    if not chain.get("precedents"):
+        return ""
+
+    blocks = []
+    for case in chain["precedents"]:
+        steps = []
+        for step in case.get("steps", []):
+            kind = step.get("kind", "")
+            steps.append(
+                '          <div class="pstep k-%s">\n'
+                '            <span class="pw">%s</span>\n'
+                '            <span class="pk">%s</span>\n'
+                '            <span class="pl">%s</span>\n'
+                '            <span class="pd">%s</span>\n'
+                '          </div>' % (
+                    _esc(kind), _esc(step.get("week", "")),
+                    _esc(_STEP_KIND.get(kind, "")), _esc(step.get("label", "")),
+                    _esc(step.get("date", ""))))
+
+        blocks.append(
+            '      <div class="pcase">\n'
+            '        <div class="phd">\n'
+            '          <h5>%s</h5>\n'
+            '          <span class="pv %s">%s</span>\n'
+            '        </div>\n'
+            '        <dl class="pmeta">\n'
+            '          <dt>日圓在第幾幕</dt><dd class="t-press">%s</dd>\n'
+            '          <dt>形狀</dt><dd>%s</dd>\n'
+            '          <dt>長度</dt><dd>%s</dd>\n'
+            '          <dt>幅度</dt><dd>%s</dd>\n'
+            '        </dl>\n'
+            '        <div class="psteps">\n%s\n        </div>\n'
+            '        <p class="plesson">%s</p>\n'
+            '      </div>' % (
+                _esc(case.get("name", "")), _tcls(case.get("severity", "watch")),
+                _esc(case.get("verdict", "")), _esc(case.get("yen_act", "")),
+                _esc(case.get("shape", "")), _esc(case.get("length", "")),
+                _esc(case.get("outcome", "")), "\n".join(steps),
+                _esc(case.get("lesson", ""))))
+
+    return (
+        '      <div class="precedents">\n'
+        '        <div class="anno">歷史上這條鏈走完的樣子 · 看順序，不看跌幅</div>\n'
+        '%s\n      </div>' % "\n".join(blocks))
+
+
 def _chains(snapshot):
     blocks = []
     for chain in snapshot["chains"]:
@@ -229,10 +287,12 @@ def _chains(snapshot):
             '      </div>\n'
             '      <div class="run">\n%s\n      </div>\n'
             '      <p class="chain-note">%s</p>\n'
+            '%s'
             '    </div>' % (
                 _mark(chain["status"]), _esc(chain["title"]),
                 _tcls(chain["status"]), _esc(chain["state"]),
-                chain["live"], chain["total"], "\n".join(nodes), _esc(chain["note"])))
+                chain["live"], chain["total"], "\n".join(nodes), _esc(chain["note"]),
+                _precedents(chain)))
 
     return (
         '<section>\n'

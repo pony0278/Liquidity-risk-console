@@ -199,6 +199,30 @@ section{padding-top:46px}
 .chain .nx{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
 .chain .nx b{color:var(--ink);font-weight:700}
 
+/* ---------- 歷史先例 ---------- */
+.prec{margin-top:13px;border-top:1px solid var(--rule);padding-top:11px}
+.prec summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-soft);font-weight:600;list-style:none}
+.prec summary::-webkit-details-marker{display:none}
+.prec summary::before{content:"▸ ";color:var(--ink-faint)}
+.prec[open] summary::before{content:"▾ "}
+.prec summary:hover{color:var(--ink)}
+.pcase{margin-top:14px;border-left:2px solid var(--rule-hard);padding-left:13px}
+.pcase h4{margin:0;font-size:13.5px;font-weight:700}
+.pact{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--press);margin:5px 0 2px}
+.pmeta{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-bottom:9px}
+.psteps{border-top:1px solid var(--rule)}
+.pstep{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--rule);font-size:12px;line-height:1.45}
+.pstep .pw{font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap}
+.pstep.k-yen{background:rgba(176,78,30,.11);box-shadow:inset 2px 0 0 var(--press);
+  padding-left:7px;margin-left:-7px}
+.pstep.k-yen .pl{font-weight:700}
+.pstep.k-yen .pw{color:var(--press)}
+.pstep.k-low .pl{color:var(--alarm)}
+.pstep.k-recover .pl{color:var(--ok)}
+.plesson{font-size:12px;color:var(--ink-soft);margin:10px 0 0;line-height:1.55}
+
 /* ---------- 說明 ---------- */
 .explain{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:28px;
   border-top:1px solid var(--rule);padding-top:22px}
@@ -410,6 +434,33 @@ _JS = r"""
     }).join("");
   }
 
+  // 歷史先例：預設收合，但摘要行直接寫出「日圓在第幾幕」——那是整段的
+  // 重點，不該藏在展開後面。
+  function precedentsHtml(chain) {
+    var cases = chain.precedents || [];
+    if (!cases.length) return "";
+    var acts = cases.map(function (c) {
+      return esc((c.name || "").split("·")[0].trim()) + " " + esc(c.yen_act || "");
+    }).join(" ／ ");
+
+    var body = cases.map(function (c) {
+      var steps = (c.steps || []).map(function (st) {
+        return '<div class="pstep k-' + esc(st.kind || "") + '">'
+          + '<span class="pw">' + esc(st.week || "") + "</span>"
+          + '<span class="pl">' + esc(st.label || "") + "</span></div>";
+      }).join("");
+      return '<div class="pcase"><h4>' + esc(c.name || "") + "</h4>"
+        + '<div class="pact">日圓在 ' + esc(c.yen_act || "") + "</div>"
+        + '<div class="pmeta">' + esc(c.shape || "") + " · " + esc(c.length || "")
+        + " · " + esc(c.outcome || "") + "</div>"
+        + '<div class="psteps">' + steps + "</div>"
+        + '<p class="plesson">' + esc(c.lesson || "") + "</p></div>";
+    }).join("");
+
+    return '<details class="prec"><summary>歷史上走完的樣子：' + acts + "</summary>"
+      + body + "</details>";
+  }
+
   function renderChains(snap) {
     el("chains").innerHTML = (snap.chains || []).map(function (c) {
       var pips = (c.nodes || []).map(function (nd) {
@@ -422,7 +473,8 @@ _JS = r"""
         + '<div class="pips">' + pips + "</div>"
         + '<div class="nx">' + (next
           ? "下一步：<b>" + esc(next.label) + "</b><br>" + esc(next.cond)
-          : "整條鏈已全部觸發。") + "</div></div>";
+          : "整條鏈已全部觸發。") + "</div>"
+        + precedentsHtml(c) + "</div>";
     }).join("");
   }
 
