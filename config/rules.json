@@ -108,8 +108,8 @@
       "title": "鏈 B — 日圓 carry unwind",
       "note": "這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 60，聯準會從未進場救 repo，約一週內自行修正。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。",
       "nodes": [
-        { "step": "01 觸發器", "label": "BOJ 升息或當局干預", "cond": "政策事件（人工維護：對照 BOJ 會議日程）", "default_state": "armed", "jump": "g-usdjpy" },
-        { "step": "02", "label": "日圓急升", "cond": "觸發條件：USD/JPY 單日 −2% 以上", "expr": "usdjpy_pct1 <= -2", "jump": "g-usdjpy" },
+        { "step": "01 觸發器", "label": "BOJ 升息或當局干預", "cond": "已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157", "default_state": "live", "jump": "g-usdjpy" },
+        { "step": "02", "label": "日圓急升", "cond": "觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作）", "expr": "usdjpy_pct1 <= -2", "jump": "g-usdjpy" },
         { "step": "03", "label": "匯損 ＋ 追繳保證金", "cond": "觸發條件：USD/JPY 5 日 −4% 以上", "expr": "usdjpy_pct5 <= -4" },
         { "step": "04", "label": "買回日圓螺旋（反身性）", "cond": "觸發條件：5 日 −6% 且 VIX > 25", "expr": "usdjpy_pct5 <= -6 and vix > 25" },
         { "step": "05", "label": "全球同步平倉", "cond": "觸發條件：VIX > 30 且日經自 60 日高點 −10%", "expr": "vix > 30 and n225_dd60 <= -10", "jump": "g-vix" },
