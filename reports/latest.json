@@ -1,13 +1,13 @@
 {
-  "scan_time": "2026-08-01T05:07:24+0000",
-  "data_as_of": "2026-08-03",
+  "scan_time": "2026-08-01T12:36:34+0000",
+  "data_as_of": "2026-08-01",
   "level": 1,
   "overall_status": "alarm",
   "verdict": {
     "level": 1,
     "headline": "沒有流動性危機。壓力集中在利率／匯率，性質是重定價。",
     "paragraphs": [
-      "SOFR 已站上 IORB 0 bps（連續 0 日為正）。這是水管層的直接訊號，優先度高於其他所有指標。",
+      "SOFR 與 IORB 齊平（0 bps）。還沒翻正，但寬鬆的緩衝剛好用完——這格從負值走到零，本身就是水管在收緊的訊號，接下來盯的是它會不會站上正值。",
       "長端在 5.275%（單日 +7bps），曲線續陡（2s30s 98 bps，單日 +6bps）。看曲線形狀而非單一水位：短端跌而長端噴是期限溢價，兩者同漲才是升息預期。",
       "信用與波動率：HY OAS 284 bps（寬鬆）、VIX 15.99、MOVE 70.9。信用是所有崩盤的領先指標，波動率是事件驅動——兩者同時轉向才代表事件在擴散。",
       "本次觸發的升級／盤中引信：「30Y ↑ 同時 DXY ↓（5 日）」。任一成立即應重新評估。"
@@ -18,17 +18,25 @@
       "n": 1,
       "short": "資金水管",
       "title": "TIER 1 — 資金水管 · 慢變數 · 落後但定義危機",
-      "status": "press",
-      "label": "快速收縮",
-      "readout": "淨流動性 $-904040B"
+      "status": "watch",
+      "label": "急抽",
+      "readout": "TGA 財政部帳戶 $911B",
+      "severity": 2,
+      "driver_key": "tga",
+      "driver_label": "TGA 財政部帳戶",
+      "plain": "銀行之間借錢順不順。這裡出事才叫「流動性危機」，但它反應最慢——真的亮燈時，事情已經很大了。"
     },
     "2": {
       "n": 2,
       "short": "信用",
       "title": "TIER 2 — 信用 · 中期領先 1–4 週 · 所有崩盤的領先指標",
-      "status": "watch",
-      "label": "底層分化",
-      "readout": "CCC OAS 1006 bps"
+      "status": "ok",
+      "label": "寬鬆",
+      "readout": "HY OAS 284 bps",
+      "severity": 1,
+      "driver_key": "hy_oas",
+      "driver_label": "HY OAS",
+      "plain": "企業借錢要多付多少利息。歷史上所有崩盤都先在這裡出現裂縫，領先股市 1–4 週。"
     },
     "3": {
       "n": 3,
@@ -36,7 +44,11 @@
       "title": "TIER 3 — 波動率 · 事件驅動 · 可於數小時內動作",
       "status": "ok",
       "label": "正常",
-      "readout": "MOVE 70.9"
+      "readout": "MOVE 70.9",
+      "severity": 1,
+      "driver_key": "move",
+      "driver_label": "MOVE",
+      "plain": "市場對「會不會出事」的定價。可以在幾小時內從平靜變恐慌，是最快的一層。"
     },
     "4": {
       "n": 4,
@@ -44,7 +56,11 @@
       "title": "TIER 4 — 利率／匯率 · 市場流動性",
       "status": "alarm",
       "label": "失控區",
-      "readout": "30Y 殖利率 5.275%"
+      "readout": "30Y 殖利率 5.275%",
+      "severity": 4,
+      "driver_key": "y30",
+      "driver_label": "30Y 殖利率",
+      "plain": "長債殖利率與匯率。它決定所有資產的折現率——長端一動，高估值的股票最先被壓縮。"
     },
     "5": {
       "n": 5,
@@ -52,12 +68,57 @@
       "title": "TIER 5 — 勞動／景氣 · 緩慢但確認",
       "status": "watch",
       "label": "趨近停滯",
-      "readout": "非農就業（月增） 57K"
+      "readout": "非農就業（月增） 57K",
+      "severity": 2,
+      "driver_key": "payrolls",
+      "driver_label": "非農就業（月增）",
+      "plain": "就業與景氣。變化最慢，但它是「經濟真的在轉弱嗎」的最終確認。"
     }
   },
   "indicators": [
     {
       "key": "sofr_iorb",
+      "track": {
+        "lo": -0.5,
+        "hi": 11.75,
+        "marker_pct": 4.081632653061225,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 44.999999999999964,
+            "from": -0.5,
+            "to": 5.0125
+          },
+          {
+            "status": "watch",
+            "label": "偏緊",
+            "start_pct": 45.0,
+            "width_pct": 40.83333333333332,
+            "from": 5.0125,
+            "to": 10.014583333333333
+          },
+          {
+            "status": "alarm",
+            "label": "水管吃緊",
+            "start_pct": 85.83333333333333,
+            "width_pct": 14.16666666666666,
+            "from": 10.014583333333333,
+            "to": 11.75
+          }
+        ],
+        "next_edge": 5,
+        "next_distance": 5.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 2,
+      "pct_rank": 72.79411764705883,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 73 百分位",
+      "distance_text": "離 5 bps 還有 5 bps",
+      "severity": 1,
       "label": "SOFR − IORB",
       "tier": 1,
       "ext": false,
@@ -84,6 +145,13 @@
     },
     {
       "key": "sofr",
+      "track": null,
+      "stale_days": 2,
+      "pct_rank": 15.441176470588236,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 15 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "SOFR",
       "tier": 1,
       "ext": false,
@@ -110,6 +178,13 @@
     },
     {
       "key": "iorb",
+      "track": null,
+      "stale_days": 0,
+      "pct_rank": 0.0,
+      "span_years": 2.190280629705681,
+      "range_text": "近 2.2 年區間第 0 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "IORB",
       "tier": 1,
       "ext": false,
@@ -119,8 +194,8 @@
       "decimals": 2,
       "value": 3.65,
       "display": "3.65%",
-      "date": "2026-08-03",
-      "points": 803,
+      "date": "2026-08-01",
+      "points": 801,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
@@ -136,6 +211,55 @@
     },
     {
       "key": "srf",
+      "track": {
+        "lo": -10.749999999999998,
+        "hi": 65.75,
+        "marker_pct": 14.052287581699344,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": -10.749999999999998,
+            "to": 4.868750000000002
+          },
+          {
+            "status": "watch",
+            "label": "留意",
+            "start_pct": 20.416666666666668,
+            "width_pct": 19.583333333333336,
+            "from": 4.868750000000002,
+            "to": 19.85
+          },
+          {
+            "status": "press",
+            "label": "明確使用",
+            "start_pct": 40.0,
+            "width_pct": 39.58333333333333,
+            "from": 19.85,
+            "to": 50.131249999999994
+          },
+          {
+            "status": "alarm",
+            "label": "暴用",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 50.131249999999994,
+            "to": 65.75
+          }
+        ],
+        "next_edge": 5,
+        "next_distance": 5.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 1,
+      "pct_rank": null,
+      "span_years": null,
+      "range_text": "",
+      "distance_text": "離 $5.0B 還有 $5.0B",
+      "severity": 1,
       "label": "SRF 使用量",
       "tier": 1,
       "ext": false,
@@ -162,6 +286,13 @@
     },
     {
       "key": "tga",
+      "track": null,
+      "stale_days": 3,
+      "pct_rank": 89.47368421052632,
+      "span_years": 2.1656399726214923,
+      "range_text": "近 2.2 年區間第 89 百分位",
+      "distance_text": "",
+      "severity": 2,
       "label": "TGA 財政部帳戶",
       "tier": 1,
       "ext": false,
@@ -169,15 +300,15 @@
       "hidden": false,
       "unit": "$B",
       "decimals": 0,
-      "value": 910776.0,
-      "display": "$910776B",
+      "value": 910.7760000000001,
+      "display": "$911B",
       "date": "2026-07-29",
       "points": 114,
       "status": "watch",
       "status_label": "急抽",
       "basis": "1 期變動",
-      "change_1": 81153.0,
-      "change_display": "+81153",
+      "change_1": 81.15300000000002,
+      "change_display": "+81",
       "threshold_text": "🟢 緩降／持平 ／ 🟡 +$50B/週 ／ 🔴 搭配其他惡化",
       "freq": "每週",
       "source_label": "WTREGEN",
@@ -188,6 +319,13 @@
     },
     {
       "key": "reserves",
+      "track": null,
+      "stale_days": 3,
+      "pct_rank": 19.298245614035086,
+      "span_years": 2.1656399726214923,
+      "range_text": "近 2.2 年區間第 19 百分位",
+      "distance_text": "",
+      "severity": 1,
       "label": "準備金餘額",
       "tier": 1,
       "ext": true,
@@ -195,15 +333,15 @@
       "hidden": false,
       "unit": "$B",
       "decimals": 0,
-      "value": 2984570.0,
-      "display": "$2984570B",
+      "value": 2984.57,
+      "display": "$2985B",
       "date": "2026-07-29",
       "points": 114,
       "status": "ok",
       "status_label": "充裕",
       "basis": "4 期變動",
-      "change_1": -77579.0,
-      "change_display": "-77579",
+      "change_1": -77.57899999999972,
+      "change_display": "-78",
       "threshold_text": "觀察下降斜率，非絕對水位",
       "freq": "每週三",
       "source_label": "WRESBAL",
@@ -214,6 +352,39 @@
     },
     {
       "key": "rrp",
+      "track": {
+        "lo": -2.849,
+        "hi": 67.5,
+        "marker_pct": 7.1074215696029786,
+        "segments": [
+          {
+            "status": "watch",
+            "label": "緩衝已失",
+            "start_pct": 0.0,
+            "width_pct": 74.99999999999999,
+            "from": -2.849,
+            "to": 49.91275
+          },
+          {
+            "status": "ok",
+            "label": "仍有緩衝",
+            "start_pct": 75.0,
+            "width_pct": 25.000000000000018,
+            "from": 49.91275,
+            "to": 67.5
+          }
+        ],
+        "next_edge": 50,
+        "next_distance": 47.849000000000004,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 1,
+      "pct_rank": 19.816513761467892,
+      "span_years": 2.187542778918549,
+      "range_text": "近 2.2 年區間第 20 百分位",
+      "distance_text": "離 $50B 還有 $48B",
+      "severity": 2,
       "label": "ON RRP",
       "tier": 1,
       "ext": true,
@@ -240,6 +411,13 @@
     },
     {
       "key": "walcl",
+      "track": null,
+      "stale_days": 3,
+      "pct_rank": 58.77192982456141,
+      "span_years": 2.1656399726214923,
+      "range_text": "近 2.2 年區間第 59 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "Fed 總資產",
       "tier": 1,
       "ext": false,
@@ -266,6 +444,13 @@
     },
     {
       "key": "net_liquidity",
+      "track": null,
+      "stale_days": 3,
+      "pct_rank": 27.027027027027028,
+      "span_years": 2.1656399726214923,
+      "range_text": "近 2.2 年區間第 27 百分位",
+      "distance_text": "",
+      "severity": 1,
       "label": "淨流動性",
       "tier": 1,
       "ext": true,
@@ -273,15 +458,15 @@
       "hidden": false,
       "unit": "$B",
       "decimals": 0,
-      "value": -904040.386,
-      "display": "$-904040B",
+      "value": 5824.838000000001,
+      "display": "$5825B",
       "date": "2026-07-29",
       "points": 111,
-      "status": "press",
-      "status_label": "快速收縮",
+      "status": "ok",
+      "status_label": "持平／擴張",
       "basis": "4 期變動",
-      "change_1": -81164.38800000004,
-      "change_display": "-81164",
+      "change_1": -92.54099999999835,
+      "change_display": "-93",
       "threshold_text": "趨勢指標，觀察 4 週方向",
       "freq": "每週",
       "source_label": "WALCL−WTREGEN−RRPONTSYD",
@@ -292,6 +477,55 @@
     },
     {
       "key": "hy_oas",
+      "track": {
+        "lo": 259.0,
+        "hi": 687.5,
+        "marker_pct": 5.834305717619603,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "寬鬆",
+            "start_pct": 0.0,
+            "width_pct": 21.250000000000007,
+            "from": 259.0,
+            "to": 350.05625
+          },
+          {
+            "status": "watch",
+            "label": "轉折觀察",
+            "start_pct": 21.25,
+            "width_pct": 23.333333333333346,
+            "from": 350.05625,
+            "to": 450.0395833333333
+          },
+          {
+            "status": "press",
+            "label": "減倉區",
+            "start_pct": 44.583333333333336,
+            "width_pct": 35.00000000000002,
+            "from": 450.0395833333333,
+            "to": 600.0145833333333
+          },
+          {
+            "status": "alarm",
+            "label": "信用事件",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 600.0145833333333,
+            "to": 687.5
+          }
+        ],
+        "next_edge": 350,
+        "next_distance": 66.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 2,
+      "pct_rank": 33.73913043478261,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 34 百分位",
+      "distance_text": "離 350 bps 還有 66 bps",
+      "severity": 1,
       "label": "HY OAS",
       "tier": 2,
       "ext": false,
@@ -318,6 +552,47 @@
     },
     {
       "key": "ig_oas",
+      "track": {
+        "lo": 75.0,
+        "hi": 167.5,
+        "marker_pct": 5.405405405405405,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 27.083333333333357,
+            "from": 75.0,
+            "to": 100.05208333333333
+          },
+          {
+            "status": "watch",
+            "label": "擴張中",
+            "start_pct": 27.083333333333332,
+            "width_pct": 54.16666666666658,
+            "from": 100.05208333333333,
+            "to": 150.15625
+          },
+          {
+            "status": "alarm",
+            "label": "信用事件",
+            "start_pct": 81.25,
+            "width_pct": 18.75,
+            "from": 150.15625,
+            "to": 167.5
+          }
+        ],
+        "next_edge": 100,
+        "next_distance": 20.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 2,
+      "pct_rank": 30.139372822299652,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 30 百分位",
+      "distance_text": "離 100 bps 還有 20 bps",
+      "severity": 1,
       "label": "IG OAS",
       "tier": 2,
       "ext": false,
@@ -344,6 +619,55 @@
     },
     {
       "key": "ccc_oas",
+      "track": {
+        "lo": 925.0,
+        "hi": 1775.0,
+        "marker_pct": 9.529411764705882,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 925.0,
+            "to": 1098.5416666666667
+          },
+          {
+            "status": "watch",
+            "label": "底層分化",
+            "start_pct": 20.416666666666668,
+            "width_pct": 23.750000000000014,
+            "from": 1098.5416666666667,
+            "to": 1300.4166666666665
+          },
+          {
+            "status": "press",
+            "label": "明確擴張",
+            "start_pct": 44.166666666666664,
+            "width_pct": 35.416666666666686,
+            "from": 1300.4166666666665,
+            "to": 1601.4583333333333
+          },
+          {
+            "status": "alarm",
+            "label": "信用事件",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 1601.4583333333333,
+            "to": 1775.0
+          }
+        ],
+        "next_edge": 1100,
+        "next_distance": 94.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 2,
+      "pct_rank": 96.52173913043478,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 97 百分位",
+      "distance_text": "離 1100 bps 還有 94 bps",
+      "severity": 1,
       "label": "CCC OAS",
       "tier": 2,
       "ext": true,
@@ -355,12 +679,12 @@
       "display": "1006 bps",
       "date": "2026-07-30",
       "points": 575,
-      "status": "watch",
-      "status_label": "底層分化",
+      "status": "ok",
+      "status_label": "正常",
       "basis": "水位",
       "change_1": -7.000000000000114,
       "change_display": "-7bps",
-      "threshold_text": "🟢 <900 ／ 🟡 900–1100 ／ 🔴 >1300",
+      "threshold_text": "🟢 <1100 ／ 🟡 1100–1300 ／ 🟠 1300–1600 ／ 🔴 >1600",
       "freq": "每日",
       "source_label": "BAMLH0A3HYC",
       "note": "指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。",
@@ -370,6 +694,47 @@
     },
     {
       "key": "hy_ig",
+      "track": {
+        "lo": 194.0,
+        "hi": 435.0,
+        "marker_pct": 4.149377593360995,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 44.166666666666636,
+            "from": 194.0,
+            "to": 300.44166666666666
+          },
+          {
+            "status": "watch",
+            "label": "分化中",
+            "start_pct": 44.166666666666664,
+            "width_pct": 41.249999999999986,
+            "from": 300.44166666666666,
+            "to": 399.85416666666663
+          },
+          {
+            "status": "press",
+            "label": "循環轉折",
+            "start_pct": 85.41666666666666,
+            "width_pct": 14.583333333333327,
+            "from": 399.85416666666663,
+            "to": 435.0
+          }
+        ],
+        "next_edge": 300,
+        "next_distance": 96.0,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 2,
+      "pct_rank": 32.926829268292686,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 33 百分位",
+      "distance_text": "離 300 bps 還有 96 bps",
+      "severity": 1,
       "label": "HY − IG 差",
       "tier": 2,
       "ext": true,
@@ -396,6 +761,55 @@
     },
     {
       "key": "move",
+      "track": {
+        "lo": 65.87999725341797,
+        "hi": 167.5,
+        "marker_pct": 4.920291148258381,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 33.75000000000003,
+            "from": 65.87999725341797,
+            "to": 100.17674818038941
+          },
+          {
+            "status": "watch",
+            "label": "警示",
+            "start_pct": 33.75,
+            "width_pct": 29.166666666666696,
+            "from": 100.17674818038941,
+            "to": 129.8159156481425
+          },
+          {
+            "status": "press",
+            "label": "債市失序",
+            "start_pct": 62.916666666666664,
+            "width_pct": 20.000000000000004,
+            "from": 129.8159156481425,
+            "to": 150.1399161974589
+          },
+          {
+            "status": "alarm",
+            "label": "危機級",
+            "start_pct": 82.91666666666667,
+            "width_pct": 17.08333333333333,
+            "from": 150.1399161974589,
+            "to": 167.5
+          }
+        ],
+        "next_edge": 100,
+        "next_distance": 29.12000274658203,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 15,
+      "pct_rank": 21.560574948665298,
+      "span_years": 1.9575633127994525,
+      "range_text": "近 2.0 年區間第 22 百分位",
+      "distance_text": "離 100.0 還有 29.1",
+      "severity": 1,
       "label": "MOVE",
       "tier": 3,
       "ext": false,
@@ -422,6 +836,55 @@
     },
     {
       "key": "vix",
+      "track": {
+        "lo": 14.989999771118164,
+        "hi": 33.5,
+        "marker_pct": 5.402485076362469,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 27.083333333333357,
+            "from": 14.989999771118164,
+            "to": 20.003124833106995
+          },
+          {
+            "status": "watch",
+            "label": "警示",
+            "start_pct": 27.083333333333332,
+            "width_pct": 27.083333333333357,
+            "from": 20.003124833106995,
+            "to": 25.016249895095825
+          },
+          {
+            "status": "press",
+            "label": "壓力",
+            "start_pct": 54.166666666666664,
+            "width_pct": 27.083333333333357,
+            "from": 25.016249895095825,
+            "to": 30.029374957084656
+          },
+          {
+            "status": "alarm",
+            "label": "恐慌",
+            "start_pct": 81.25,
+            "width_pct": 18.75,
+            "from": 30.029374957084656,
+            "to": 33.5
+          }
+        ],
+        "next_edge": 20,
+        "next_distance": 4.010000228881836,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 1,
+      "pct_rank": 24.055666003976143,
+      "span_years": 1.998631074606434,
+      "range_text": "近 2.0 年區間第 24 百分位",
+      "distance_text": "離 20.00 還有 4.01",
+      "severity": 1,
       "label": "VIX",
       "tier": 3,
       "ext": false,
@@ -448,6 +911,55 @@
     },
     {
       "key": "vvix",
+      "track": {
+        "lo": 88.63999938964844,
+        "hi": 140.5,
+        "marker_pct": 5.784805176807465,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "穩定",
+            "start_pct": 0.0,
+            "width_pct": 22.083333333333343,
+            "from": 88.63999938964844,
+            "to": 100.09241619110108
+          },
+          {
+            "status": "watch",
+            "label": "留意",
+            "start_pct": 22.083333333333332,
+            "width_pct": 19.166666666666668,
+            "from": 100.09241619110108,
+            "to": 110.03224964141846
+          },
+          {
+            "status": "press",
+            "label": "risk-off",
+            "start_pct": 41.25,
+            "width_pct": 38.333333333333336,
+            "from": 110.03224964141846,
+            "to": 129.91191654205323
+          },
+          {
+            "status": "alarm",
+            "label": "恐慌",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 129.91191654205323,
+            "to": 140.5
+          }
+        ],
+        "next_edge": 100,
+        "next_distance": 8.360000610351562,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 1,
+      "pct_rank": 16.766467065868262,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 17 百分位",
+      "distance_text": "離 100.0 還有 8.4",
+      "severity": 1,
       "label": "VVIX",
       "tier": 3,
       "ext": false,
@@ -474,6 +986,55 @@
     },
     {
       "key": "y30",
+      "track": {
+        "lo": 4.6425,
+        "hi": 5.4075,
+        "marker_pct": 82.67975102842246,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 4.6425,
+            "to": 4.7986875
+          },
+          {
+            "status": "watch",
+            "label": "警示",
+            "start_pct": 20.416666666666668,
+            "width_pct": 26.25000000000002,
+            "from": 4.7986875,
+            "to": 4.9995
+          },
+          {
+            "status": "press",
+            "label": "明確壓力",
+            "start_pct": 46.666666666666664,
+            "width_pct": 32.9166666666667,
+            "from": 4.9995,
+            "to": 5.2513125
+          },
+          {
+            "status": "alarm",
+            "label": "失控區",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 5.2513125,
+            "to": 5.4075
+          }
+        ],
+        "next_edge": null,
+        "next_distance": null,
+        "prev_edge": 5.25,
+        "prev_distance": 0.02500009536743164
+      },
+      "stale_days": 1,
+      "pct_rank": 99.800796812749,
+      "span_years": 1.998631074606434,
+      "range_text": "近 2.0 年區間第 100 百分位",
+      "distance_text": "已超過 5.250% 門檻 0.025%",
+      "severity": 4,
       "label": "30Y 殖利率",
       "tier": 4,
       "ext": false,
@@ -500,6 +1061,55 @@
     },
     {
       "key": "y10",
+      "track": {
+        "lo": 4.325,
+        "hi": 5.175,
+        "marker_pct": 49.41175124224495,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 4.325,
+            "to": 4.498541666666667
+          },
+          {
+            "status": "watch",
+            "label": "警示",
+            "start_pct": 20.416666666666668,
+            "width_pct": 35.416666666666686,
+            "from": 4.498541666666667,
+            "to": 4.7995833333333335
+          },
+          {
+            "status": "press",
+            "label": "明確壓力",
+            "start_pct": 55.833333333333336,
+            "width_pct": 23.750000000000014,
+            "from": 4.7995833333333335,
+            "to": 5.001458333333333
+          },
+          {
+            "status": "alarm",
+            "label": "失控區",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 5.001458333333333,
+            "to": 5.175
+          }
+        ],
+        "next_edge": 4.8,
+        "next_distance": 0.05500011444091779,
+        "prev_edge": 4.5,
+        "prev_distance": 0.24499988555908203
+      },
+      "stale_days": 1,
+      "pct_rank": 99.20318725099602,
+      "span_years": 1.998631074606434,
+      "range_text": "近 2.0 年區間第 99 百分位",
+      "distance_text": "離 4.800% 還有 0.055%",
+      "severity": 2,
       "label": "10Y 殖利率",
       "tier": 4,
       "ext": false,
@@ -526,6 +1136,13 @@
     },
     {
       "key": "y2",
+      "track": null,
+      "stale_days": 2,
+      "pct_rank": 80.73394495412845,
+      "span_years": 2.184804928131417,
+      "range_text": "近 2.2 年區間第 81 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "2Y 殖利率",
       "tier": 4,
       "ext": false,
@@ -552,6 +1169,47 @@
     },
     {
       "key": "slope_2s30s",
+      "track": {
+        "lo": 49.5,
+        "hi": 100.80001831054683,
+        "marker_pct": 94.15204887093924,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 49.5,
+            "to": 59.97375373840331
+          },
+          {
+            "status": "watch",
+            "label": "陡化中",
+            "start_pct": 20.416666666666668,
+            "width_pct": 58.33333333333322,
+            "from": 59.97375373840331,
+            "to": 89.89876441955563
+          },
+          {
+            "status": "press",
+            "label": "明顯陡化",
+            "start_pct": 78.75,
+            "width_pct": 21.250000000000007,
+            "from": 89.89876441955563,
+            "to": 100.80001831054683
+          }
+        ],
+        "next_edge": null,
+        "next_distance": null,
+        "prev_edge": 90,
+        "prev_distance": 7.800018310546832
+      },
+      "stale_days": 2,
+      "pct_rank": 47.88732394366197,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 48 百分位",
+      "distance_text": "已超過 90 bps 門檻 8 bps",
+      "severity": 3,
       "label": "2s30s 斜率",
       "tier": 4,
       "ext": true,
@@ -578,6 +1236,47 @@
     },
     {
       "key": "term_premium",
+      "track": {
+        "lo": 0.325,
+        "hi": 1.175,
+        "marker_pct": 60.30588235294117,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 0.325,
+            "to": 0.49854166666666666
+          },
+          {
+            "status": "watch",
+            "label": "升高",
+            "start_pct": 20.416666666666668,
+            "width_pct": 59.16666666666655,
+            "from": 0.49854166666666666,
+            "to": 1.0014583333333333
+          },
+          {
+            "status": "press",
+            "label": "明確壓力",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 1.0014583333333333,
+            "to": 1.175
+          }
+        ],
+        "next_edge": 1.0,
+        "next_distance": 0.1624,
+        "prev_edge": 0.5,
+        "prev_distance": 0.3376
+      },
+      "stale_days": 8,
+      "pct_rank": 99.44547134935306,
+      "span_years": 2.1683778234086244,
+      "range_text": "近 2.2 年區間第 99 百分位",
+      "distance_text": "離 1.00% 還有 0.16%",
+      "severity": 2,
       "label": "10Y 期限溢價",
       "tier": 4,
       "ext": true,
@@ -604,6 +1303,13 @@
     },
     {
       "key": "usdjpy",
+      "track": null,
+      "stale_days": 0,
+      "pct_rank": 76.30057803468208,
+      "span_years": 2.004106776180698,
+      "range_text": "近 2.0 年區間第 76 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "USD/JPY",
       "tier": 4,
       "ext": false,
@@ -630,6 +1336,13 @@
     },
     {
       "key": "dxy",
+      "track": null,
+      "stale_days": 1,
+      "pct_rank": 51.29224652087475,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 51 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "DXY 美元指數",
       "tier": 4,
       "ext": true,
@@ -656,6 +1369,47 @@
     },
     {
       "key": "wti",
+      "track": {
+        "lo": 79.75,
+        "hi": 105.25,
+        "marker_pct": 19.294110466452207,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "正常",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": 79.75,
+            "to": 84.95625
+          },
+          {
+            "status": "watch",
+            "label": "反覆",
+            "start_pct": 20.416666666666668,
+            "width_pct": 59.16666666666655,
+            "from": 84.95625,
+            "to": 100.04375
+          },
+          {
+            "status": "press",
+            "label": "通膨壓力",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 100.04375,
+            "to": 105.25
+          }
+        ],
+        "next_edge": 85,
+        "next_distance": 0.3300018310546875,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 1,
+      "pct_rank": 85.6858846918489,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 86 百分位",
+      "distance_text": "離 $85.00 還有 $0.33",
+      "severity": 1,
       "label": "WTI 油價",
       "tier": 4,
       "ext": true,
@@ -682,6 +1436,13 @@
     },
     {
       "key": "ndx",
+      "track": null,
+      "stale_days": 1,
+      "pct_rank": 89.02195608782435,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 89 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "Nasdaq 100",
       "tier": 4,
       "ext": false,
@@ -708,6 +1469,13 @@
     },
     {
       "key": "sox",
+      "track": null,
+      "stale_days": 1,
+      "pct_rank": 89.22155688622755,
+      "span_years": 1.995893223819302,
+      "range_text": "近 2.0 年區間第 89 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "費城半導體",
       "tier": 4,
       "ext": false,
@@ -734,6 +1502,13 @@
     },
     {
       "key": "n225",
+      "track": null,
+      "stale_days": 1,
+      "pct_rank": 91.39344262295081,
+      "span_years": 1.998631074606434,
+      "range_text": "近 2.0 年區間第 91 百分位",
+      "distance_text": "",
+      "severity": 0,
       "label": "日經 225",
       "tier": 4,
       "ext": false,
@@ -760,6 +1535,55 @@
     },
     {
       "key": "claims",
+      "track": {
+        "lo": 197.75,
+        "hi": 297.5,
+        "marker_pct": 5.012531328320802,
+        "segments": [
+          {
+            "status": "ok",
+            "label": "穩定",
+            "start_pct": 0.0,
+            "width_pct": 32.500000000000036,
+            "from": 197.75,
+            "to": 230.16875
+          },
+          {
+            "status": "watch",
+            "label": "轉弱",
+            "start_pct": 32.5,
+            "width_pct": 20.000000000000004,
+            "from": 230.16875,
+            "to": 250.11875
+          },
+          {
+            "status": "press",
+            "label": "明確走弱",
+            "start_pct": 52.5,
+            "width_pct": 30.000000000000032,
+            "from": 250.11875,
+            "to": 280.04375
+          },
+          {
+            "status": "alarm",
+            "label": "衰退訊號",
+            "start_pct": 82.5,
+            "width_pct": 17.499999999999996,
+            "from": 280.04375,
+            "to": 297.5
+          }
+        ],
+        "next_edge": 230,
+        "next_distance": 27.25,
+        "prev_edge": null,
+        "prev_distance": null
+      },
+      "stale_days": 7,
+      "pct_rank": 0.0,
+      "span_years": 2.1656399726214923,
+      "range_text": "近 2.2 年區間第 0 百分位",
+      "distance_text": "離 230K 還有 27K",
+      "severity": 1,
       "label": "初領失業金 4 週均",
       "tier": 5,
       "ext": false,
@@ -786,6 +1610,47 @@
     },
     {
       "key": "payrolls",
+      "track": {
+        "lo": -26.25,
+        "hi": 101.25,
+        "marker_pct": 65.29411764705883,
+        "segments": [
+          {
+            "status": "press",
+            "label": "轉負",
+            "start_pct": 0.0,
+            "width_pct": 20.41666666666667,
+            "from": -26.25,
+            "to": -0.21875
+          },
+          {
+            "status": "watch",
+            "label": "趨近停滯",
+            "start_pct": 20.416666666666668,
+            "width_pct": 59.16666666666655,
+            "from": -0.21875,
+            "to": 75.21875
+          },
+          {
+            "status": "ok",
+            "label": "放緩但正成長",
+            "start_pct": 79.58333333333333,
+            "width_pct": 20.41666666666667,
+            "from": 75.21875,
+            "to": 101.25
+          }
+        ],
+        "next_edge": 75,
+        "next_distance": 18.0,
+        "prev_edge": 0,
+        "prev_distance": 57.0
+      },
+      "stale_days": 61,
+      "pct_rank": null,
+      "span_years": null,
+      "range_text": "",
+      "distance_text": "離 75K 還有 18K",
+      "severity": 2,
       "label": "非農就業（月增）",
       "tier": 5,
       "ext": false,
@@ -812,6 +1677,13 @@
     },
     {
       "key": "payems_level",
+      "track": null,
+      "stale_days": 61,
+      "pct_rank": null,
+      "span_years": null,
+      "range_text": "",
+      "distance_text": "",
+      "severity": 0,
       "label": "非農就業人數",
       "tier": 5,
       "ext": false,
@@ -934,6 +1806,7 @@
       "id": "A",
       "title": "鏈 A — 期限溢價衝擊",
       "note": "實例教材：2022 英國 gilt／LDI 事件——長債殖利率跳升 → 退休金槓桿長存續期部位被追繳 → 被迫拋售長債 → 殖利率再升 → 螺旋 → 央行緊急進場。這是節點 04→06 的完整示範。歷史類比則更像 1994 債券大屠殺、2013 taper tantrum、2023/10：痛，但未演成系統性危機。",
+      "precedents": [],
       "nodes": [
         {
           "step": "01 起因",
@@ -986,19 +1859,135 @@
     {
       "id": "B",
       "title": "鏈 B — 日圓 carry unwind",
-      "note": "這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 60，聯準會從未進場救 repo，約一週內自行修正。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。",
+      "note": "這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 65，聯準會從未進場救 repo，數週內自行修復。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。下面兩次是這條鏈實際走完的樣子——重點不在跌幅，在於「日圓出現在第幾幕」：1998 它是最後一幕（跌勢已走 11 週），2024 它是第一幕。等日圓告訴你要跑，在 1998 會晚兩個半月、而且賣在最低點。",
+      "precedents": [
+        {
+          "name": "1998 · 俄羅斯違約 ／ LTCM",
+          "verdict": "咬到融資層 → 變成真危機",
+          "severity": "press",
+          "outcome": "S&P −19.3%（收盤基準，差 0.7% 未達熊市定義）",
+          "shape": "雙底，中間有 +9% 假反彈",
+          "length": "12 週見底 · 4 個月收復",
+          "yen_act": "第 12 週 — 最後一幕",
+          "steps": [
+            {
+              "date": "1998-07-17",
+              "week": "第 0 週",
+              "label": "S&P 見頂 1,186.75",
+              "kind": "peak"
+            },
+            {
+              "date": "1998-08-17",
+              "week": "第 4 週",
+              "label": "俄羅斯違約、盧布貶值 70%+，信用利差大幅擴張",
+              "kind": "credit"
+            },
+            {
+              "date": "1998-08-31",
+              "week": "第 6 週",
+              "label": "單日 −6.8%，收盤低點 957.28（−19.3%）",
+              "kind": "low"
+            },
+            {
+              "date": "1998-09",
+              "week": "第 7–9 週",
+              "label": "反彈約 +9%——很多人以為結束了",
+              "kind": "bounce"
+            },
+            {
+              "date": "1998-09-23",
+              "week": "第 10 週",
+              "label": "LTCM 紓困（14 家銀行 $3.6B）· 9/29 Fed 首次降息",
+              "kind": "policy"
+            },
+            {
+              "date": "1998-10-07",
+              "week": "第 12 週",
+              "label": "日圓單日 −7%，史上最大單日波動",
+              "kind": "yen"
+            },
+            {
+              "date": "1998-10-08",
+              "week": "第 12 週",
+              "label": "盤中二次探底 923.32（−22%），最終底部",
+              "kind": "low"
+            },
+            {
+              "date": "1998-10-15",
+              "week": "第 13 週",
+              "label": "Fed 會議間緊急降息 → 當天 +4.2%，V 轉",
+              "kind": "policy"
+            },
+            {
+              "date": "1998-11-23",
+              "week": "第 19 週",
+              "label": "創歷史新高",
+              "kind": "recover"
+            }
+          ],
+          "lesson": "領先的是信用不是日圓：俄羅斯違約在第 4 週，日圓暴漲在第 12 週、離最終底部只剩 1 天。而且最痛的 8/31 是單一一天，真正折磨人的是九月那段假反彈。"
+        },
+        {
+          "name": "2024/8 · BOJ 升息 ＋ 弱非農",
+          "verdict": "沒碰到融資層 → 自行修復",
+          "severity": "watch",
+          "outcome": "S&P −8.5%（收盤基準）· 日經 −26%",
+          "shape": "連三天崩跌後 V 轉",
+          "length": "3 週見底 · 約 6 週創新高",
+          "yen_act": "第 3 週 — 第一幕（觸發者）",
+          "steps": [
+            {
+              "date": "2024-07-11",
+              "week": "第 0 週",
+              "label": "日經見頂 42,224；S&P 7/16 見頂 5,667",
+              "kind": "peak"
+            },
+            {
+              "date": "2024-07-31",
+              "week": "第 3 週",
+              "label": "BOJ 升息 0.10% → 0.25%（前月已干預約 ¥5.5兆）",
+              "kind": "yen"
+            },
+            {
+              "date": "2024-08-02",
+              "week": "第 3 週",
+              "label": "非農 114K，遠低於預期 175K → 押 Fed 降息，利差雙向壓縮",
+              "kind": "policy"
+            },
+            {
+              "date": "2024-08-05",
+              "week": "第 3 週",
+              "label": "日經 −12.4%（1987 以來最慘）· S&P −3.0% · VIX 盤中 >65 · 黃金同步下跌",
+              "kind": "low"
+            },
+            {
+              "date": "2024-08-06",
+              "week": "第 4 週",
+              "label": "日經 +10.2%，隔天就反轉",
+              "kind": "bounce"
+            },
+            {
+              "date": "2024-08-底",
+              "week": "第 7 週",
+              "label": "S&P 收復全部跌幅；Fed 從未進場救 repo",
+              "kind": "recover"
+            }
+          ],
+          "lesson": "日圓 7/29→8/5 升值 6.15%，是這次的起因而非結局。信用利差全程沒動，所以它關在匯率與股市裡，三週結束。"
+        }
+      ],
       "nodes": [
         {
           "step": "01 觸發器",
           "label": "BOJ 升息或當局干預",
-          "cond": "政策事件（人工維護：對照 BOJ 會議日程）",
+          "cond": "已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157",
           "jump": "g-usdjpy",
-          "state": "armed"
+          "state": "live"
         },
         {
           "step": "02",
           "label": "日圓急升",
-          "cond": "觸發條件：USD/JPY 單日 −2% 以上",
+          "cond": "觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作）",
           "jump": "g-usdjpy",
           "state": "cold"
         },
@@ -1031,15 +2020,16 @@
           "state": "cold"
         }
       ],
-      "live": 0,
+      "live": 1,
       "total": 6,
-      "state": "ARMED",
+      "state": "ACTIVE",
       "status": "watch"
     },
     {
       "id": "C",
       "title": "鏈 C — AI 從股價事件變成信用事件",
       "note": "目前最被低估的傳導路徑。市場把 AI 當純上漲題材，真正的風險在融資層——它不會只是某檔晶片股跌幾趴，而是變成 Tier 2 信用事件，那才會真正擴散。關鍵背離：亞洲半導體在打崩盤級的架，而 HY OAS 仍在低檔，就證明它仍關在產業籠子裡。",
+      "precedents": [],
       "nodes": [
         {
           "step": "01 起因",
@@ -1093,6 +2083,7 @@
       "id": "D",
       "title": "鏈 D — 縮表 → 準備金 → 水管",
       "note": "這是唯一一條會直接走進 Tier 1 的鏈，也是唯一能讓「資金水管」從綠轉黃的機制。緩衝墊（ON RRP）一旦歸零，縮表接下來會直接咬進準備金。這條鏈與鏈 A 的節點 01 共用同一個起因，兩者會互相加強。",
+      "precedents": [],
       "nodes": [
         {
           "step": "01 起因",
@@ -1113,7 +2104,7 @@
           "label": "準備金下降至稀缺",
           "cond": "觸發條件：WRESBAL 20 期變動 < −$200B",
           "jump": "g-reserves",
-          "state": "live"
+          "state": "cold"
         },
         {
           "step": "04",
@@ -1130,7 +2121,7 @@
           "state": "cold"
         }
       ],
-      "live": 3,
+      "live": 2,
       "total": 5,
       "state": "ACTIVE",
       "status": "press"
@@ -1186,5 +2177,31 @@
       "readout": "HY − IG 204bps · CCC 1006bps"
     }
   ],
-  "data_notes": []
+  "data_notes": [],
+  "changes": [
+    [
+      "alert",
+      "鏈 B — 日圓 carry unwind 推進：0/6 → 1/6 節點（新觸發：BOJ 升息或當局干預）"
+    ],
+    [
+      "warn",
+      "TGA 財政部帳戶 $910776B → $911B（-909865）"
+    ],
+    [
+      "warn",
+      "準備金餘額 $2984570B → $2985B（-2981585）"
+    ],
+    [
+      "info",
+      "鏈 D — 縮表 → 準備金 → 水管 回退：3/5 → 2/5 節點"
+    ],
+    [
+      "info",
+      "淨流動性 燈號 快速收縮 → 持平／擴張（$-904040B → $5825B）"
+    ],
+    [
+      "info",
+      "CCC OAS 燈號 底層分化 → 正常（1006 bps → 1006 bps）"
+    ]
+  ]
 }
