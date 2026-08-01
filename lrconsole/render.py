@@ -58,6 +58,7 @@ def _header(snapshot):
         '      <div>掃描時間 &nbsp;%s</div>\n'
         '      <div>層級 &nbsp;TIER 1–5 ＋ 擁擠層</div>\n'
         '      <div>判定 &nbsp;<span class="%s">第 %d 階</span></div>\n'
+        '      <div><button id="toggle-notes" class="nbtn" type="button">顯示說明</button></div>\n'
         '    </div>\n'
         '  </div>\n'
         '  <div class="strip">\n%s\n  </div>\n'
@@ -81,8 +82,8 @@ def _verdict(snapshot):
             "、".join(_esc(w["code"]) for w in fired) if fired else "無"),
         '      <dt>無法判定</dt><dd>%s</dd>' % (
             "、".join(_esc(w["code"]) for w in unknown) if unknown else "無"),
-        '      <dt>判讀原則</dt><dd>資金流動性 ≠ 市場流動性。Tier 1 是水管、慢變數；Tier 3／4 可在數小時內蒸發。水管型指標是落後指標。</dd>',
-        '      <dt>看速度，不看水位</dt><dd>USD/JPY 的水位不是警報，單日反轉 −2% 才是。30Y 同理：關鍵是單日 +10bps 與黏著度。</dd>',
+        '      <dt class="note-only">判讀原則</dt><dd class="note-only">資金流動性 ≠ 市場流動性。Tier 1 是水管、慢變數；Tier 3／4 可在數小時內蒸發。水管型指標是落後指標。</dd>',
+        '      <dt class="note-only">看速度，不看水位</dt><dd class="note-only">USD/JPY 的水位不是警報，單日反轉 −2% 才是。30Y 同理：關鍵是單日 +10bps 與黏著度。</dd>',
         '    </dl>',
     ]
 
@@ -111,7 +112,7 @@ def _changes(snapshot, changes):
         '  <div class="shead"><h3>本次變化</h3>'
         '<span class="anno">DELTA · 與上次掃描相比</span>'
         '<span class="anno">SECTION 0</span></div>\n'
-        '  <p class="lede">自動掃描的重點不在重印水位，而在標出<strong>移動</strong>：'
+        '  <p class="lede note-only">自動掃描的重點不在重印水位，而在標出<strong>移動</strong>：'
         '階梯升降、引信開關、傳導鏈節點推進，以及超過門檻的數值變動。</p>\n'
         '  <div class="changes">\n%s\n  </div>\n'
         '</section>' % "\n".join(rows))
@@ -125,7 +126,7 @@ def _crowding(snapshot):
             '    <div class="cw">\n'
             '      <div class="lv %s">%s%s</div>\n'
             '      <h4>%s</h4>\n'
-            '      <dl>\n'
+            '      <dl class="note-only">\n'
             '        <dt>擁擠度</dt><dd>%s</dd>\n'
             '        <dt>觸發器</dt><dd>%s</dd>\n'
             '      </dl>\n%s\n'
@@ -138,7 +139,7 @@ def _crowding(snapshot):
         '  <div class="shead"><h3>擁擠層</h3>'
         '<span class="anno">CROWDING · 槓桿堆在哪裡</span>'
         '<span class="anno">SECTION A</span></div>\n'
-        '  <p class="lede">尾部風險無法預測觸發點，但可以監控「槓桿堆在哪裡」。'
+        '  <p class="lede note-only">尾部風險無法預測觸發點，但可以監控「槓桿堆在哪裡」。'
         '這一層不產生燈號，它決定<strong>一旦有事，瀑布會從哪裡開始</strong>。'
         '引信長度＝部位擁擠度；觸發器＝會點燃它的具體事件。</p>\n'
         '  <div class="crowd">\n%s\n  </div>\n'
@@ -208,25 +209,28 @@ def _gauges(snapshot):
     series = snapshot.get("_series") or {}
     for tier in sorted(by_tier):
         title = snapshot["tiers"].get(tier, {}).get("title") or "TIER %d" % tier
-        rows.append('      <tr class="tier"><td colspan="9">%s</td></tr>' % _esc(title))
+        rows.append('      <tr class="tier"><td colspan="8">%s</td></tr>' % _esc(title))
         for indicator in by_tier[tier]:
             change = ('<span class="chg">%s</span>' % _esc(indicator["change_display"])) \
                 if indicator["change_display"] else ""
             stale = ' <span class="stale">STALE</span>' if not indicator["fetch_ok"] else ""
+            source_text = " · ".join(t for t in (indicator["freq"],
+                                                  indicator["source_label"]) if t)
             rows.append(
                 '      <tr id="g-%s"%s>\n'
-                '        <td class="k">%s%s</td>\n'
+                '        <td class="k" title="%s">%s%s</td>\n'
                 '        <td class="v %s">%s%s</td>\n'
                 '        <td class="sp">%s<span class="rg">%s</span></td>\n'
-                '        <td class="th">%s%s</td>\n'
+                '        <td class="bd">%s<span class="thx note-only">%s</span></td>\n'
                 '        <td class="st %s">%s%s</td>\n'
                 '        <td class="dt">%s%s</td>\n'
                 '        <td class="src">%s</td>\n'
-                '        <td class="src">%s</td>\n'
-                '        <td class="note">%s</td>\n'
+                '        <td class="note note-only">%s</td>\n'
                 '      </tr>' % (
                     _esc(indicator["key"]),
                     ' class="ext"' if indicator["ext"] else "",
+                    # 註記藏進 title：說明欄收合時，滑過指標名稱仍看得到
+                    _esc(indicator["note"]),
                     _esc(indicator["label"]), " ⭐" if indicator["star"] else "",
                     _tcls(indicator["status"]), _esc(indicator["display"]), change,
                     _sparkline((series.get(indicator["key"]) or {}).get("values"),
@@ -237,7 +241,7 @@ def _gauges(snapshot):
                     _tcls(indicator["status"]), _mark(indicator["status"]),
                     _esc(indicator["status_label"]),
                     _esc(indicator["date"] or "—"), stale,
-                    _esc(indicator["freq"]), _esc(indicator["source_label"]),
+                    _esc(source_text),
                     _esc(indicator["note"])))
 
     return (
@@ -245,7 +249,7 @@ def _gauges(snapshot):
         '  <div class="shead"><h3>指標盤</h3>'
         '<span class="anno">GAUGES · TIER 1–5</span>'
         '<span class="anno">SECTION B</span></div>\n'
-        '  <p class="lede">標記 <strong>＋</strong> 者為原始十項之外的擴充格。'
+        '  <p class="lede note-only">標記 <strong>＋</strong> 者為原始十項之外的擴充格。'
         '分兩層使用：<strong>盤中引信</strong>（每日、設單日變動警報）'
         '＝ USD/JPY 單日 %%、10Y／30Y 單日 bps、VIX、MOVE、WTI；'
         '<strong>慢燈</strong>（每週）＝ SOFR−IORB、準備金、TGA、失業金。</p>\n'
@@ -253,7 +257,8 @@ def _gauges(snapshot):
         '  <table>\n'
         '    <thead><tr><th>指標</th><th>最新</th><th>走勢 · 區間位置</th>'
         '<th>閾值帶</th><th>燈號</th>'
-        '<th>資料日</th><th>頻率</th><th>資料源</th><th>註記</th></tr></thead>\n'
+        '<th>資料日</th><th>來源</th>'
+        '<th class="note-only">註記</th></tr></thead>\n'
         '    <tbody>\n%s\n    </tbody>\n'
         '  </table>\n  </div>\n'
         '</section>' % "\n".join(rows))
@@ -345,7 +350,7 @@ def _chains(snapshot):
             '        <span class="cnt">%d / %d 節點已觸發</span>\n'
             '      </div>\n'
             '      <div class="run">\n%s\n      </div>\n'
-            '      <p class="chain-note">%s</p>\n'
+            '      <p class="chain-note note-only">%s</p>\n'
             '%s'
             '    </div>' % (
                 _mark(chain["status"]), _esc(chain["title"]),
@@ -358,7 +363,7 @@ def _chains(snapshot):
         '  <div class="shead"><h3>邏輯傳導鏈</h3>'
         '<span class="anno">TRANSMISSION · 壓力走到第幾步</span>'
         '<span class="anno">SECTION C</span></div>\n'
-        '  <p class="lede">每條鏈是一條實際的傳導路徑。'
+        '  <p class="lede note-only">每條鏈是一條實際的傳導路徑。'
         '<strong>實線橘框＝該節點條件目前已成立；虛線＝尚未觸發。</strong>'
         '價值不在預測哪根引信會被點燃，而在看出壓力沿著哪條路走到了第幾步。'
         '點擊已觸發節點可跳至對應指標。</p>\n'
@@ -386,7 +391,7 @@ def _ladder(snapshot):
         '  <div class="shead"><h3>升級階梯</h3>'
         '<span class="anno">ESCALATION · 現在在第幾階</span>'
         '<span class="anno">SECTION D</span></div>\n'
-        '  <p class="lede">「危機」有幾個標誌：資金斷裂、信用擴張、被迫去槓桿、'
+        '  <p class="lede note-only">「危機」有幾個標誌：資金斷裂、信用擴張、被迫去槓桿、'
         '相關性衝到 1。階梯由下方規則自動判定，取最高成立者。</p>\n'
         '  <div class="ladder">\n%s\n  </div>\n'
         '</section>' % "\n".join(rows))
@@ -417,7 +422,7 @@ def _tripwires(snapshot):
         '  <div class="shead"><h3>升級觸發器</h3>'
         '<span class="anno">TRIPWIRES · 任一成立即重新評估</span>'
         '<span class="anno">SECTION E</span></div>\n'
-        '  <p class="lede">這幾條是獨立條件，不需同時成立。'
+        '  <p class="lede note-only">這幾條是獨立條件，不需同時成立。'
         '前三條是「長債重定價 → 真危機」的升級訊號；後幾條是盤中引信。</p>\n'
         '  <div class="wires">\n%s\n  </div>\n'
         '</section>' % "\n".join(cards))
@@ -469,6 +474,21 @@ _SCRIPT = """
     n.addEventListener('keydown',function(e){
       if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}
     });
+  });
+
+  var KEY='lrc-show-notes';
+  var btn=document.getElementById('toggle-notes');
+  function apply(on){
+    document.body.classList.toggle('show-notes',on);
+    if(btn)btn.textContent=on?'隱藏說明':'顯示說明';
+  }
+  var saved=null;
+  try{saved=localStorage.getItem(KEY);}catch(e){}
+  apply(saved==='1');
+  if(btn)btn.addEventListener('click',function(){
+    var on=!document.body.classList.contains('show-notes');
+    apply(on);
+    try{localStorage.setItem(KEY,on?'1':'0');}catch(e){}
   });
 })();
 """

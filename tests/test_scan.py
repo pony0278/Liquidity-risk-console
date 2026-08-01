@@ -512,6 +512,35 @@ class PrecedentTests(unittest.TestCase):
             self.assertEqual(validator.errors, [], "%s 標籤不完整" % name)
 
 
+class ConsoleDensityTests(unittest.TestCase):
+    """說明文字預設收合，但必須還在 DOM 裡——是藏起來，不是刪掉。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp()
+        _, _, cls.out_dir = run_scan(cls.tmp, CALM)
+        with open(os.path.join(cls.out_dir, "console.html"), encoding="utf-8") as handle:
+            cls.html = handle.read()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp)
+
+    def test_toggle_button_exists(self):
+        self.assertIn('id="toggle-notes"', self.html)
+        self.assertIn("lrc-show-notes", self.html, "開關狀態要記進 localStorage")
+
+    def test_notes_are_hidden_not_deleted(self):
+        self.assertIn('class="note note-only"', self.html)
+        # 抽一句具體的註記文字驗證它還在 DOM 裡
+        self.assertIn("報稅日", self.html, "註記內容被刪掉了，應該只是收合")
+        self.assertIn("note-only{display:none", self.html.replace(" ", ""))
+
+    def test_note_also_available_as_tooltip(self):
+        """說明收合時，滑過指標名稱仍要看得到註記。"""
+        self.assertRegex(self.html, r'<td class="k" title="[^"]+">')
+
+
 class RebuildTests(unittest.TestCase):
     def test_rebuild_preserves_scan_time_and_changes(self):
         """重畫頁面不是一次新的掃描，時間戳與變更清單都要沿用。"""

@@ -150,7 +150,7 @@ section{padding-top:52px}
 
 /* ---------- gauge table ---------- */
 .wrap{overflow-x:auto;border-top:1px solid var(--rule)}
-table{border-collapse:collapse;width:100%;min-width:1120px;font-size:13.5px}
+table{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
 thead th{
   font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--ink-soft);font-weight:600;text-align:left;
@@ -357,3 +357,19 @@ td.sp .rg{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-
 .bg-ok{background:var(--ok)} .bg-watch{background:var(--watch)}
 .bg-press{background:var(--press)} .bg-alarm{background:var(--alarm)}
 .bg-unknown{background:var(--dead)}
+
+/* ---------- 說明開關：預設只看圖表，文字讓想看的人自己開 ---------- */
+/* display:revert 還原成 UA 預設（td→table-cell、p→block、dt→block），
+   不必為每種元素各寫一條 */
+.note-only{display:none!important}
+body.show-notes .note-only{display:revert!important}
+.nbtn{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:700;color:var(--ink-soft);background:transparent;
+  border:1px solid var(--rule-hard);padding:4px 10px 3px;cursor:pointer;margin-top:4px;
+}
+.nbtn:hover{color:var(--ink);border-color:var(--ink)}
+td.bd{width:170px}
+td.bd .thx{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);
+  margin-top:6px;line-height:1.5}
+body.show-notes td.bd .thx{display:block!important}
