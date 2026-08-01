@@ -164,7 +164,12 @@ def main(argv=None):
             # 重畫頁面不是一次新的掃描：時間戳與「與上次相比」都必須沿用，
             # 否則每次改模板都會謊報掃描時間，並把真正的變更清單洗掉。
             scan_time = previous["scan_time"]
-            inherited_changes = [tuple(c) for c in previous.get("changes", [])] or None
+            # 沒有可沿用的清單時，寧可空著也不要重算——重算是拿新快照去比
+            # 「同一份快照」，得到的是閾值調整、模板改動這類重建痕跡，
+            # 會被讀成市場的變化（例如「CCC 燈號 底層分化 → 正常
+            # （1006 → 1006）」，數字根本沒動，動的是我改的門檻）。
+            inherited_changes = ([tuple(c) for c in previous.get("changes", [])]
+                                 or [("info", "頁面重建，變更清單待下次掃描更新。")])
 
     log("== 流動性與尾部風險掃描 %s ==" % scan_time)
 

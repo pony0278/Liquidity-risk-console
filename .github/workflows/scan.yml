@@ -135,11 +135,10 @@ jobs:
           python3 scan.py --rebuild --notify never || true
           touch reports/.nojekyll
 
-      # enablement: 第一次跑時順便把 Pages 打開（來源設為 GitHub Actions）。
-      # 若組織政策擋住，到 Settings → Pages 手動把 Source 選成 "GitHub Actions"。
+      # 不用 enablement: true——GITHUB_TOKEN 沒有建立 Pages 站台的權限，
+      # 那條路一定是 403 硬錯誤。Pages 必須先在
+      # Settings → Pages → Source 手動選成 "GitHub Actions"。
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
