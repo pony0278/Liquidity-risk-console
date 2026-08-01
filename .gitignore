@@ -5,8 +5,10 @@ __pycache__/
 # 執行時產生
 logs/
 data/cache/
-data/.last_scan
 
-# 歷史序列（data/history.csv）與報表（reports/）刻意「不」忽略：
-# 前者是這套工具自己累積的資料資產，上游刪檔也還在；
-# 後者讓每次掃描的結果可以被 diff、被回溯。
+# 以下三者刻意「不」忽略：
+#   data/history.csv  — 這套工具自己累積的資料資產，上游刪檔也還在
+#   reports/          — 每次掃描的結果可以被 diff、被回溯
+#   data/.last_scan   — 間隔戳記。GitHub Actions 每次都是全新 checkout，
+#                       這個檔沒進版控的話戳記就永遠是空的，排程會變成
+#                       每天掃而不是每 3 天。
