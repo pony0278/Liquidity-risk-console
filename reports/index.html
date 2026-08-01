@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>系統壓力盤 — 流動性與尾部風險監測 2026-08-01</title>
+<style>
+:root{
+  --paper:#E4E8EF;
+  --paper-2:#DBE0E9;
+  --ink:#1B2A41;
+  --ink-soft:#5A6B85;
+  --ink-faint:#8695AB;
+  --rule:#B4BFD0;
+  --rule-hard:#8C9AB0;
+
+  --ok:#2E6E4F;
+  --watch:#9E6F1E;
+  --press:#B04E1E;
+  --alarm:#96241F;
+  --dead:#9AA6B8;
+
+  --mono: ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans TC",system-ui,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  background-image:
+    repeating-linear-gradient(0deg,transparent 0 39px,rgba(27,42,65,.045) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,rgba(27,42,65,.045) 39px 40px);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.6;
+}
+.sheet{max-width:1180px;margin:0 auto;padding:0 20px 96px}
+
+/* ---------- drafting annotation type ---------- */
+.anno{
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+  font-weight:600;
+}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---------- title block (like a drawing titleblock) ---------- */
+header{
+  border-bottom:1.5px solid var(--ink);
+  padding:34px 0 0;
+  margin-bottom:0;
+}
+.tb{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:24px;
+  align-items:end;
+  padding-bottom:18px;
+}
+h1{
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:clamp(22px,3.6vw,34px);
+  letter-spacing:-.02em;
+  margin:6px 0 0;
+  line-height:1.1;
+}
+h1 span{color:var(--ink-faint);font-weight:400}
+.tb-meta{text-align:right;line-height:1.9}
+.tb-meta div{white-space:nowrap}
+
+/* ---------- tier status strip ---------- */
+.strip{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  border-bottom:1.5px solid var(--ink);
+}
+.strip>div{
+  padding:14px 12px 16px;
+  border-left:1px solid var(--rule);
+}
+.strip>div:first-child{border-left:0}
+.strip b{
+  display:block;
+  font-family:var(--mono);
+  font-size:19px;
+  font-weight:700;
+  margin-top:5px;
+  letter-spacing:-.01em;
+}
+.strip .rd{font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);margin-top:2px}
+
+/* ---------- verdict ---------- */
+.verdict{
+  padding:26px 0 30px;
+  border-bottom:1px solid var(--rule);
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);
+  gap:34px;
+}
+.verdict h2{
+  font-family:var(--mono);
+  font-size:clamp(17px,2.2vw,22px);
+  font-weight:700;
+  margin:8px 0 10px;
+  line-height:1.35;
+  letter-spacing:-.01em;
+}
+.verdict p{margin:0 0 10px;max-width:62ch}
+.verdict p:last-child{margin-bottom:0}
+.tag{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  border:1px solid currentColor;
+  padding:3px 8px 2px;
+  font-weight:600;
+}
+.side{border-left:1px solid var(--rule);padding-left:22px}
+.side dl{margin:10px 0 0;font-size:13.5px}
+.side dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:13px}
+.side dd{margin:2px 0 0}
+
+/* ---------- section frame ---------- */
+section{padding-top:52px}
+.shead{display:flex;align-items:baseline;gap:14px;border-bottom:1.5px solid var(--ink);padding-bottom:8px;margin-bottom:4px;flex-wrap:wrap}
+.shead h3{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;margin:0}
+.shead .anno{margin-left:auto}
+.lede{color:var(--ink-soft);font-size:13.5px;max-width:76ch;margin:14px 0 24px}
+
+/* ---------- status marks ---------- */
+.m{display:inline-block;width:9px;height:9px;vertical-align:1px;margin-right:7px;flex:none}
+.m-ok{background:var(--ok)}
+.m-watch{background:var(--watch)}
+.m-press{background:var(--press)}
+.m-alarm{background:var(--alarm)}
+.m-dead{background:transparent;border:1px solid var(--dead)}
+.t-ok{color:var(--ok)} .t-watch{color:var(--watch)} .t-press{color:var(--press)} .t-alarm{color:var(--alarm)}
+
+/* ---------- crowding ---------- */
+.crowd{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:0;border-top:1px solid var(--rule)}
+.cw{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:18px 20px 20px}
+.cw:nth-child(3n){border-right:0}
+.cw h4{margin:6px 0 0;font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+.cw .lv{display:flex;align-items:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.cw dl{margin:13px 0 0;font-size:13px;line-height:1.55}
+.cw dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:10px}
+.cw dd{margin:1px 0 0;color:var(--ink)}
+
+/* ---------- gauge table ---------- */
+.wrap{overflow-x:auto;border-top:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:920px;font-size:13.5px}
+thead th{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600;text-align:left;
+  padding:9px 12px;border-bottom:1px solid var(--rule-hard);white-space:nowrap;
+}
+tbody td{padding:11px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr.tier td{
+  background:var(--paper-2);
+  font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;
+  padding:7px 12px;border-bottom:1px solid var(--rule-hard);
+}
+tbody tr.ext td:first-child::after{content:" ＋";color:var(--ink-faint);font-size:11px}
+td.k{font-weight:600;white-space:nowrap}
+td.v{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+td.th{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.5}
+td.st{white-space:nowrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;font-weight:600}
+td.src{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+td.note{font-size:12.5px;color:var(--ink-soft);min-width:190px}
+tbody tr:hover td{background:rgba(27,42,65,.035)}
+tbody tr.tier:hover td{background:var(--paper-2)}
+tr.hl td{background:rgba(176,78,30,.10)!important;box-shadow:inset 2px 0 0 var(--press)}
+
+/* ---------- SIGNATURE: transmission chains ---------- */
+.chains{border-top:1px solid var(--rule)}
+.chain{padding:22px 0 26px;border-bottom:1px solid var(--rule)}
+.chain-hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.chain-hd h4{margin:0;font-size:16px;font-weight:700}
+.chain-hd .state{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;border:1px solid currentColor;padding:2px 7px 1px}
+.chain-hd .cnt{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-left:auto;font-variant-numeric:tabular-nums}
+
+.run{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:6px}
+.node{
+  flex:1 1 0;min-width:150px;
+  border:1px solid var(--rule-hard);
+  background:rgba(255,255,255,.42);
+  padding:10px 12px 12px;
+  position:relative;
+  cursor:default;
+  transition:background .18s ease, border-color .18s ease;
+}
+.node[data-jump]{cursor:pointer}
+.node[data-jump]:hover,.node[data-jump]:focus-visible{background:rgba(255,255,255,.85);border-color:var(--ink);outline:none}
+.node+.node{margin-left:14px}
+.node+.node::before{
+  content:"";position:absolute;left:-15px;top:50%;width:15px;height:1px;background:var(--rule-hard);
+}
+.node+.node::after{
+  content:"";position:absolute;left:-6px;top:50%;transform:translateY(-50%) rotate(45deg);
+  width:5px;height:5px;border-top:1px solid var(--rule-hard);border-right:1px solid var(--rule-hard);
+}
+.node .step{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--ink-faint);font-weight:600;display:block}
+.node .lbl{display:block;font-size:13.5px;line-height:1.4;margin-top:5px;font-weight:600}
+.node .cond{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:6px;line-height:1.45}
+
+.node.live{background:rgba(176,78,30,.11);border-color:var(--press)}
+.node.live .step{color:var(--press)}
+.node.live::marker{content:none}
+.node.armed{background:rgba(158,111,30,.09);border-color:var(--watch)}
+.node.armed .step{color:var(--watch)}
+.node.cold{border-style:dashed;border-color:var(--rule);background:transparent}
+.node.cold .lbl{color:var(--ink-soft);font-weight:600}
+.node .flag{
+  position:absolute;top:-1px;right:-1px;
+  font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;font-weight:700;
+  padding:2px 5px 1px;color:#fff;
+}
+.node.live .flag{background:var(--press)}
+.node.armed .flag{background:var(--watch)}
+.chain-note{font-size:12.5px;color:var(--ink-soft);margin:14px 0 0;padding-left:12px;border-left:2px solid var(--rule-hard)}
+
+@media (prefers-reduced-motion:no-preference){
+  .node.live .flag{animation:blip 2.6s ease-in-out infinite}
+  @keyframes blip{0%,100%{opacity:1}50%{opacity:.45}}
+}
+
+/* ---------- ladder ---------- */
+.ladder{border-top:1px solid var(--rule);counter-reset:none}
+.rung{
+  display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1.05fr) auto;
+  gap:18px;align-items:baseline;
+  padding:15px 0;border-bottom:1px solid var(--rule);
+}
+.rung .lv{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink-faint);line-height:1}
+.rung h4{margin:0;font-size:15.5px;font-weight:700}
+.rung .sig{font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.5}
+.rung .rd{font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:600;white-space:nowrap;text-align:right}
+.rung.here{background:rgba(176,78,30,.10);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
+.rung.here .lv{color:var(--press)}
+
+/* ---------- tripwires ---------- */
+.wires{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:0;border-top:1px solid var(--rule)}
+.wire{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:16px 18px 18px}
+.wire:last-child{border-right:0}
+.wire code{
+  display:block;font-family:var(--mono);font-size:13px;font-weight:700;
+  color:var(--alarm);margin:6px 0 8px;letter-spacing:-.01em;line-height:1.4;
+}
+.wire p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+
+/* ---------- footer ---------- */
+footer{margin-top:56px;border-top:1.5px solid var(--ink);padding-top:20px;font-size:12.5px;color:var(--ink-soft)}
+footer .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:26px}
+footer h5{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:var(--ink)}
+footer ul{margin:0;padding-left:16px}
+footer li{margin-bottom:5px}
+footer code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.disc{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);font-size:11.5px}
+
+@media (max-width:860px){
+  .verdict{grid-template-columns:1fr;gap:22px}
+  .side{border-left:0;border-top:1px solid var(--rule);padding-left:0;padding-top:18px}
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .strip>div:nth-child(odd){border-left:0}
+  .strip>div{border-top:1px solid var(--rule)}
+  .cw:nth-child(3n){border-right:1px solid var(--rule)}
+  .rung{grid-template-columns:34px 1fr;gap:10px 14px}
+  .rung .sig,.rung .rd{grid-column:2}
+  .rung .rd{text-align:left}
+  .tb{grid-template-columns:1fr}
+  .tb-meta{text-align:left}
+  .run{display:block}
+  .node+.node{margin-left:0;margin-top:20px}
+  .node+.node::before{left:22px;top:-20px;width:1px;height:20px}
+  .node+.node::after{left:19px;top:-8px;transform:rotate(135deg)}
+}
+
+/* ---------- 自動掃描附加樣式 ---------- */
+.t-unknown{color:var(--dead)}
+.t-info{color:var(--ink-faint)}
+.m-info{background:transparent;border:1px solid var(--rule-hard)}
+.m-unknown{background:transparent;border:1px solid var(--dead)}
+.chg{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:600;margin-left:6px}
+.node.unknown{border-style:dashed;border-color:var(--dead);background:transparent}
+.node.unknown .lbl{color:var(--ink-faint)}
+.node.unknown .flag{background:var(--dead)}
+.wire.fired{background:rgba(150,36,31,.09);box-shadow:inset 3px 0 0 var(--alarm)}
+.wire.unknown code{color:var(--dead)}
+.wire .st{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;display:block;margin-bottom:2px}
+.changes{border-top:1px solid var(--rule)}
+.chg-row{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.chg-row .sev{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;white-space:nowrap}
+.sev-alert{color:var(--alarm)} .sev-warn{color:var(--watch)} .sev-info{color:var(--ink-faint)}
+.cw .rdout{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:10px;font-variant-numeric:tabular-nums}
+.stale{color:var(--press);font-family:var(--mono);font-size:10px;letter-spacing:.1em}
+td.dt{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header>
+  <div class="tb">
+    <div>
+      <div class="anno">系統壓力盤 / SYSTEMIC PRESSURE CONSOLE</div>
+      <h1>流動性與尾部風險監測 <span>AUTO</span></h1>
+    </div>
+    <div class="tb-meta anno">
+      <div>資料截至 &nbsp;2026-08-03</div>
+      <div>掃描時間 &nbsp;2026-08-01 05:07</div>
+      <div>層級 &nbsp;TIER 1–5 ＋ 擁擠層</div>
+      <div>判定 &nbsp;<span class="t-alarm">第 1 階</span></div>
+    </div>
+  </div>
+  <div class="strip">
+<div>
+  <div class="anno">TIER 1 &nbsp;資金水管</div>
+  <b class="t-press"><span class="m m-press"></span>快速收縮</b>
+  <div class="rd">淨流動性 $-904040B</div>
+</div>
+<div>
+  <div class="anno">TIER 2 &nbsp;信用</div>
+  <b class="t-watch"><span class="m m-watch"></span>底層分化</b>
+  <div class="rd">CCC OAS 1006 bps</div>
+</div>
+<div>
+  <div class="anno">TIER 3 &nbsp;波動率</div>
+  <b class="t-ok"><span class="m m-ok"></span>正常</b>
+  <div class="rd">MOVE 70.9</div>
+</div>
+<div>
+  <div class="anno">TIER 4 &nbsp;利率／匯率</div>
+  <b class="t-alarm"><span class="m m-alarm"></span>失控區</b>
+  <div class="rd">30Y 殖利率 5.275%</div>
+</div>
+<div>
+  <div class="anno">TIER 5 &nbsp;勞動</div>
+  <b class="t-watch"><span class="m m-watch"></span>趨近停滯</b>
+  <div class="rd">非農就業（月增） 57K</div>
+</div>
+  </div>
+</header>
+
+<div class="verdict">
+  <div>
+    <span class="tag t-alarm">第 1 階 · 折現率／估值重定價</span>
+    <h2>沒有流動性危機。壓力集中在利率／匯率，性質是重定價。</h2>
+    <p>SOFR 已站上 IORB 0 bps（連續 0 日為正）。這是水管層的直接訊號，優先度高於其他所有指標。</p>
+    <p>長端在 5.275%（單日 +7bps），曲線續陡（2s30s 98 bps，單日 +6bps）。看曲線形狀而非單一水位：短端跌而長端噴是期限溢價，兩者同漲才是升息預期。</p>
+    <p>信用與波動率：HY OAS 284 bps（寬鬆）、VIX 15.99、MOVE 70.9。信用是所有崩盤的領先指標，波動率是事件驅動——兩者同時轉向才代表事件在擴散。</p>
+    <p>本次觸發的升級／盤中引信：「30Y ↑ 同時 DXY ↓（5 日）」。任一成立即應重新評估。</p>
+  </div>
+  <div class="side">
+    <div class="anno">本次掃描</div>
+    <dl>
+      <dt>觸發中的引信</dt><dd>30Y ↑ 同時 DXY ↓（5 日）</dd>
+      <dt>無法判定</dt><dd>無</dd>
+      <dt>判讀原則</dt><dd>資金流動性 ≠ 市場流動性。Tier 1 是水管、慢變數；Tier 3／4 可在數小時內蒸發。水管型指標是落後指標。</dd>
+      <dt>看速度，不看水位</dt><dd>USD/JPY 的水位不是警報，單日反轉 −2% 才是。30Y 同理：關鍵是單日 +10bps 與黏著度。</dd>
+    </dl>
+  </div>
+</div>
+
+<section>
+  <div class="shead"><h3>本次變化</h3><span class="anno">DELTA · 與上次掃描相比</span><span class="anno">SECTION 0</span></div>
+  <p class="lede">自動掃描的重點不在重印水位，而在標出<strong>移動</strong>：階梯升降、引信開關、傳導鏈節點推進，以及超過門檻的數值變動。</p>
+  <div class="changes">
+    <div class="chg-row"><span class="sev sev-info">記錄</span><span>沒有上一次的掃描記錄，這是第一份基準。</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>擁擠層</h3><span class="anno">CROWDING · 槓桿堆在哪裡</span><span class="anno">SECTION A</span></div>
+  <p class="lede">尾部風險無法預測觸發點，但可以監控「槓桿堆在哪裡」。這一層不產生燈號，它決定<strong>一旦有事，瀑布會從哪裡開始</strong>。引信長度＝部位擁擠度；觸發器＝會點燃它的具體事件。</p>
+  <div class="crowd">
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>進行中</div>
+      <h4>AI／半導體估值 ＋ 債務融資</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>超大規模業者 capex 以發債支應；信用利差已開始跑輸大盤。</dd>
+        <dt>觸發器</dt><dd>guidance 不再上調；中國 DUV 微影機進展；單一名字失望。</dd>
+      </dl>
+        <div class="rdout">SOX 自 60 日高點 -22.7% · Nasdaq 100 -7.8%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-ok"><span class="m m-ok"></span>引信縮短</div>
+      <h4>日圓 carry trade</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>利差極大 → 部位持續累積。水位越高，引信越長越滿。</dd>
+        <dt>觸發器</dt><dd>BOJ 升息或當局干預造成日圓瞬間急升。</dd>
+      </dl>
+        <div class="rdout">USD/JPY 157.40 · 5 日 -3.80%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-watch"><span class="m m-watch"></span>需留意</div>
+      <h4>公債基差交易</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>對沖基金高槓桿的長債多基差部位。現代版的英國 LDI。</dd>
+        <dt>觸發器</dt><dd>長端續噴 → 追繳保證金 → 被迫拋售長債 → 螺旋。</dd>
+      </dl>
+        <div class="rdout">MOVE 70.9 · 30Y 5.28%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>未實現虧損擴大</div>
+      <h4>銀行 AFS／HTM 債券帳</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>長天期債券未實現虧損隨 30Y 上升擴大。2023 SVB 的完整機制。</dd>
+        <dt>觸發器</dt><dd>30Y 站穩 5.2% 以上並黏著；區域銀行存款外流。</dd>
+      </dl>
+        <div class="rdout">30Y 5.28% · 20 日 +29bps</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>進行中</div>
+      <h4>指數集中度</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>領漲高度集中於 AI 權值股；非權值股獲利成長預期偏高。</dd>
+        <dt>觸發器</dt><dd>單一 AI 名字的失望即可瀑布化。</dd>
+      </dl>
+        <div class="rdout">Nasdaq 100 自 60 日高點 -7.8%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-ok"><span class="m m-ok"></span>早期分化</div>
+      <h4>私募信用／BDC</h4>
+      <dl>
+        <dt>擁擠度</dt><dd>贖回隊伍變長；AI 取代 SaaS 的敘事已寫進部分公司的前瞻指引。</dd>
+        <dt>觸發器</dt><dd>再融資窗口；AI 供給潮推升整體信用利差。</dd>
+      </dl>
+        <div class="rdout">HY − IG 204bps · CCC 1006bps</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>指標盤</h3><span class="anno">GAUGES · TIER 1–5</span><span class="anno">SECTION B</span></div>
+  <p class="lede">標記 <strong>＋</strong> 者為原始十項之外的擴充格。分兩層使用：<strong>盤中引信</strong>（每日、設單日變動警報）＝ USD/JPY 單日 %、10Y／30Y 單日 bps、VIX、MOVE、WTI；<strong>慢燈</strong>（每週）＝ SOFR−IORB、準備金、TGA、失業金。</p>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>指標</th><th>最新</th><th>閾值帶</th><th>燈號</th><th>資料日</th><th>頻率</th><th>資料源</th><th>註記</th></tr></thead>
+    <tbody>
+      <tr class="tier"><td colspan="8">TIER 1 — 資金水管 · 慢變數 · 落後但定義危機</td></tr>
+      <tr id="g-sofr_iorb">
+        <td class="k">SOFR − IORB</td>
+        <td class="v t-ok">0 bps<span class="chg">+0bps</span></td>
+        <td class="th">🟢 &lt;+5 ／ 🟡 +5~+10 持續 ／ 🔴 &gt;+10 連 3 日</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">SOFR − IORB</td>
+        <td class="note">負值＝現金充裕。盯「由負轉正」的翻轉，不是絕對水位。</td>
+      </tr>
+      <tr id="g-srf">
+        <td class="k">SRF 使用量</td>
+        <td class="v t-ok">$0.0B<span class="chg">-0.0</span></td>
+        <td class="th">🟢 &lt;$5B 偶發 ／ 🟡 &gt;$20B 連續 ／ 🔴 &gt;$50B 或連 5 日</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">NY Fed</td>
+        <td class="note">非 FRED，抓 NY Fed desk operations API。報稅日、季底的關鍵日使用屬正常。</td>
+      </tr>
+      <tr id="g-tga">
+        <td class="k">TGA 財政部帳戶</td>
+        <td class="v t-watch">$910776B<span class="chg">+81153</span></td>
+        <td class="th">🟢 緩降／持平 ／ 🟡 +$50B/週 ／ 🔴 搭配其他惡化</td>
+        <td class="st t-watch"><span class="m m-watch"></span>急抽</td>
+        <td class="dt">2026-07-29</td>
+        <td class="src">每週</td>
+        <td class="src">WTREGEN</td>
+        <td class="note">看週變動，不看水位。急抽會直接扣準備金。</td>
+      </tr>
+      <tr id="g-reserves" class="ext">
+        <td class="k">準備金餘額</td>
+        <td class="v t-ok">$2984570B<span class="chg">-77579</span></td>
+        <td class="th">觀察下降斜率，非絕對水位</td>
+        <td class="st t-ok"><span class="m m-ok"></span>充裕</td>
+        <td class="dt">2026-07-29</td>
+        <td class="src">每週三</td>
+        <td class="src">WRESBAL</td>
+        <td class="note">SOFR−IORB 的成因指標。能在 SOFR 翻正前幾週看到鋪陳。</td>
+      </tr>
+      <tr id="g-rrp" class="ext">
+        <td class="k">ON RRP</td>
+        <td class="v t-watch">$2B<span class="chg">+1</span></td>
+        <td class="th">歸零＝縮表緩衝墊消失</td>
+        <td class="st t-watch"><span class="m m-watch"></span>緩衝已失</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">RRPONTSYD</td>
+        <td class="note">過去縮表先抽 RRP、抽完才輪到準備金。緩衝墊沒了＝縮表直接咬進準備金。</td>
+      </tr>
+      <tr id="g-net_liquidity" class="ext">
+        <td class="k">淨流動性</td>
+        <td class="v t-press">$-904040B<span class="chg">-81164</span></td>
+        <td class="th">趨勢指標，觀察 4 週方向</td>
+        <td class="st t-press"><span class="m m-press"></span>快速收縮</td>
+        <td class="dt">2026-07-29</td>
+        <td class="src">每週</td>
+        <td class="src">WALCL−WTREGEN−RRPONTSYD</td>
+        <td class="note">替代 M2 的正確口徑。M2 量的是非銀行大眾持有的錢，與 repo／準備金是兩個系統。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 2 — 信用 · 中期領先 1–4 週 · 所有崩盤的領先指標</td></tr>
+      <tr id="g-hy_oas">
+        <td class="k">HY OAS ⭐</td>
+        <td class="v t-ok">284 bps<span class="chg">-3bps</span></td>
+        <td class="th">🟢 &lt;350 ／ 🟡 350–450 ／ 🟠 450–600（減倉）／ 🔴 &gt;600</td>
+        <td class="st t-ok"><span class="m m-ok"></span>寬鬆</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">BAMLH0A0HYM2</td>
+        <td class="note">特性：從緊到擴張很快，一旦動就是大幅度。FRED 自 2026/4 起僅保留近 3 年觀測值，本腳本會自行累積歷史。</td>
+      </tr>
+      <tr id="g-ig_oas">
+        <td class="k">IG OAS</td>
+        <td class="v t-ok">80 bps<span class="chg">-1bps</span></td>
+        <td class="th">🟢 &lt;100 ／ 🟡 100–130 ／ 🔴 &gt;150</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">BAMLC0A0CM</td>
+        <td class="note">AI 相關發行供給潮是今年最大的技術面變數。</td>
+      </tr>
+      <tr id="g-ccc_oas" class="ext">
+        <td class="k">CCC OAS</td>
+        <td class="v t-watch">1006 bps<span class="chg">-7bps</span></td>
+        <td class="th">🟢 &lt;900 ／ 🟡 900–1100 ／ 🔴 &gt;1300</td>
+        <td class="st t-watch"><span class="m m-watch"></span>底層分化</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">BAMLH0A3HYC</td>
+        <td class="note">指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。</td>
+      </tr>
+      <tr id="g-hy_ig" class="ext">
+        <td class="k">HY − IG 差</td>
+        <td class="v t-ok">204 bps<span class="chg">-2bps</span></td>
+        <td class="th">持續擴張＝信用循環轉折</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">兩者相減</td>
+        <td class="note">位於 2009 後區間的緊端時，代表信用循環尚未轉向。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 3 — 波動率 · 事件驅動 · 可於數小時內動作</td></tr>
+      <tr id="g-move">
+        <td class="k">MOVE ⭐</td>
+        <td class="v t-ok">70.9<span class="chg">+2.7</span></td>
+        <td class="th">🟢 &lt;100 ／ 🟡 100–130 ／ 🟠 130–150 ／ 🔴 &gt;150</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-17</td>
+        <td class="src">每日</td>
+        <td class="src">^MOVE</td>
+        <td class="note">通常領先 VIX 1–3 週。FRED 沒有此系列，走 Yahoo。</td>
+      </tr>
+      <tr id="g-vix">
+        <td class="k">VIX</td>
+        <td class="v t-ok">15.99<span class="chg">-1.10</span></td>
+        <td class="th">🟢 &lt;20 ／ 🟡 20–25 ／ 🟠 &gt;25 持續 ／ 🔴 &gt;30</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">^VIX ／ VIXCLS</td>
+        <td class="note">16 以下是順風區；破 30 才進入去槓桿階。</td>
+      </tr>
+      <tr id="g-vvix">
+        <td class="k">VVIX</td>
+        <td class="v t-ok">91.6<span class="chg">-3.0</span></td>
+        <td class="th">🟢 &lt;100 ／ 🟡 100–110 ／ 🟠 110–130 ／ 🔴 &gt;130</td>
+        <td class="st t-ok"><span class="m m-ok"></span>穩定</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">^VVIX</td>
+        <td class="note">尾部風險定價（對恐慌的恐慌）。VIX 低但 VVIX 高＝市場在偷買保險。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 4 — 利率／匯率 · 市場流動性</td></tr>
+      <tr id="g-y30">
+        <td class="k">30Y 殖利率</td>
+        <td class="v t-alarm">5.275%<span class="chg">+7bps</span></td>
+        <td class="th">🟢 &lt;4.8 ／ 🟡 4.8–5.0 ／ 🟠 5.0–5.25 ／ 🔴 &gt;5.25</td>
+        <td class="st t-alarm"><span class="m m-alarm"></span>失控區</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">^TYX ／ DGS30</td>
+        <td class="note">單日 +10bps ＝ 即時 risk-off（見盤中引信）。水位重要，但黏著度更重要。</td>
+      </tr>
+      <tr id="g-y10">
+        <td class="k">10Y 殖利率</td>
+        <td class="v t-watch">4.745%<span class="chg">+8bps</span></td>
+        <td class="th">🟢 &lt;4.5 ／ 🟡 4.5–4.8 ／ 🟠 4.8–5.0 ／ 🔴 &gt;5.0</td>
+        <td class="st t-watch"><span class="m m-watch"></span>警示</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">^TNX ／ DGS10</td>
+        <td class="note">房貸基準利率。與 30Y 的關係決定壓力是「升息預期」還是「期限溢價」。</td>
+      </tr>
+      <tr id="g-y2">
+        <td class="k">2Y 殖利率</td>
+        <td class="v t-info">4.230%<span class="chg">+1bps</span></td>
+        <td class="th">觀察與長端的方向差</td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">^FVX ／ DGS2</td>
+        <td class="note">2Y 跌而 30Y 噴 ＝ 期限溢價；兩者同漲 ＝ 升息預期。</td>
+      </tr>
+      <tr id="g-slope_2s30s" class="ext">
+        <td class="k">2s30s 斜率</td>
+        <td class="v t-press">98 bps<span class="chg">+6bps</span></td>
+        <td class="th">短端跌＋長端噴＝熊市陡化</td>
+        <td class="st t-press"><span class="m m-press"></span>明顯陡化</td>
+        <td class="dt">2026-07-30</td>
+        <td class="src">每日</td>
+        <td class="src">DGS30 − DGS2</td>
+        <td class="note">只看 10Y 水位會錯過重點——是曲線形狀在告訴你壓力來自哪裡。</td>
+      </tr>
+      <tr id="g-term_premium" class="ext">
+        <td class="k">10Y 期限溢價</td>
+        <td class="v t-watch">0.84%<span class="chg">-1bps</span></td>
+        <td class="th">趨勢與黏著度，非單日</td>
+        <td class="st t-watch"><span class="m m-watch"></span>升高</td>
+        <td class="dt">2026-07-24</td>
+        <td class="src">每日</td>
+        <td class="src">THREEFYTP10（Kim-Wright）</td>
+        <td class="note">NY Fed ACM 只有 xls，這裡改用 FRED 的 Kim-Wright 模型（THREEFYTP10），口徑不同但方向一致。慢變數，不會像 VIX 隔天回落。</td>
+      </tr>
+      <tr id="g-usdjpy">
+        <td class="k">USD/JPY ⭐</td>
+        <td class="v t-info">157.40<span class="chg">-2.78</span></td>
+        <td class="th">水位不設閾值；警報看速度（單日 −2% ＝ carry unwind）</td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-08-01</td>
+        <td class="src">每日</td>
+        <td class="src">USDJPY=X</td>
+        <td class="note">水位高本身不是警報，但代表引信更長更滿。危險在速度的兩個極端。</td>
+      </tr>
+      <tr id="g-dxy" class="ext">
+        <td class="k">DXY 美元指數</td>
+        <td class="v t-info">99.80<span class="chg">-0.21</span></td>
+        <td class="th">與 30Y 同向＝正常；反向＝質變</td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">DX-Y.NYB</td>
+        <td class="note">若變成殖利率升＋美元跌，即升級為主權信譽問題（見升級觸發器）。</td>
+      </tr>
+      <tr id="g-wti" class="ext">
+        <td class="k">WTI 油價</td>
+        <td class="v t-ok">$84.67<span class="chg">+1.08</span></td>
+        <td class="th">單日 ±5% 進盤中引信</td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-07-31</td>
+        <td class="src">每日</td>
+        <td class="src">CL=F ／ DCOILWTICO</td>
+        <td class="note">幾乎是所有地緣風險的總開關。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 5 — 勞動／景氣 · 緩慢但確認</td></tr>
+      <tr id="g-claims">
+        <td class="k">初領失業金 4 週均</td>
+        <td class="v t-ok">203K<span class="chg">-5</span></td>
+        <td class="th">🟢 &lt;230K ／ 🟡 230–250 ／ 🟠 &gt;250 連 3 週 ／ 🔴 &gt;280K</td>
+        <td class="st t-ok"><span class="m m-ok"></span>穩定</td>
+        <td class="dt">2026-07-25</td>
+        <td class="src">每週四</td>
+        <td class="src">IC4WSA</td>
+        <td class="note">反方向意外（數據突然轉壞）常是最未被定價的風險。</td>
+      </tr>
+      <tr id="g-payrolls">
+        <td class="k">非農就業（月增）</td>
+        <td class="v t-watch">57K<span class="chg">-72</span></td>
+        <td class="th">正成長放緩＝鴿派解壓 ／ 趨近 0 或負＝衰退恐慌</td>
+        <td class="st t-watch"><span class="m m-watch"></span>趨近停滯</td>
+        <td class="dt">2026-06-01</td>
+        <td class="src">每月</td>
+        <td class="src">PAYEMS 月差</td>
+        <td class="note">在「怕升息」的 regime 下，偏軟＝鴿派利多；崩至趨零則翻為衰退恐慌。</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>邏輯傳導鏈</h3><span class="anno">TRANSMISSION · 壓力走到第幾步</span><span class="anno">SECTION C</span></div>
+  <p class="lede">每條鏈是一條實際的傳導路徑。<strong>實線橘框＝該節點條件目前已成立；虛線＝尚未觸發。</strong>價值不在預測哪根引信會被點燃，而在看出壓力沿著哪條路走到了第幾步。點擊已觸發節點可跳至對應指標。</p>
+  <div class="chains">
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 A — 期限溢價衝擊</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">3 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">財政供給 ＋ 縮表 ＋ 無前瞻指引</span>
+          <span class="cond">結構性背景（人工維護）</span>
+        </div>
+        <div class="node live" data-jump="g-y30" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">02</span>
+          <span class="lbl">長端殖利率跳升</span>
+          <span class="cond">觸發條件：30Y &gt; 5.0% 或 2s30s &gt; 80bps</span>
+        </div>
+        <div class="node live" data-jump="g-y10" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">03</span>
+          <span class="lbl">高倍數股估值壓縮</span>
+          <span class="cond">觸發條件：Nasdaq 100 自 60 日高點回落 &gt; 5%</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_oas" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">企業再融資成本上升</span>
+          <span class="cond">觸發條件：HY OAS &gt; 350bps</span>
+        </div>
+        <div class="node cold" data-jump="g-move" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">槓桿長債部位追繳</span>
+          <span class="cond">觸發條件：MOVE &gt; 130 或 SRF &gt; $20B</span>
+        </div>
+        <div class="node cold" data-jump="g-sofr_iorb" tabindex="0" role="button">
+          <span class="step">06 質變</span>
+          <span class="lbl">資金水管斷裂</span>
+          <span class="cond">觸發條件：SOFR−IORB 由負轉正</span>
+        </div>
+      </div>
+      <p class="chain-note">實例教材：2022 英國 gilt／LDI 事件——長債殖利率跳升 → 退休金槓桿長存續期部位被追繳 → 被迫拋售長債 → 殖利率再升 → 螺旋 → 央行緊急進場。這是節點 04→06 的完整示範。歷史類比則更像 1994 債券大屠殺、2013 taper tantrum、2023/10：痛，但未演成系統性危機。</p>
+    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-watch"></span>
+        <h4>鏈 B — 日圓 carry unwind</h4>
+        <span class="state t-watch">ARMED</span>
+        <span class="cnt">0 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node armed" data-jump="g-usdjpy" tabindex="0" role="button">
+          <span class="flag">ARMED</span>
+          <span class="step">01 觸發器</span>
+          <span class="lbl">BOJ 升息或當局干預</span>
+          <span class="cond">政策事件（人工維護：對照 BOJ 會議日程）</span>
+        </div>
+        <div class="node cold" data-jump="g-usdjpy" tabindex="0" role="button">
+          <span class="step">02</span>
+          <span class="lbl">日圓急升</span>
+          <span class="cond">觸發條件：USD/JPY 單日 −2% 以上</span>
+        </div>
+        <div class="node cold">
+          <span class="step">03</span>
+          <span class="lbl">匯損 ＋ 追繳保證金</span>
+          <span class="cond">觸發條件：USD/JPY 5 日 −4% 以上</span>
+        </div>
+        <div class="node cold">
+          <span class="step">04</span>
+          <span class="lbl">買回日圓螺旋（反身性）</span>
+          <span class="cond">觸發條件：5 日 −6% 且 VIX &gt; 25</span>
+        </div>
+        <div class="node cold" data-jump="g-vix" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">全球同步平倉</span>
+          <span class="cond">觸發條件：VIX &gt; 30 且日經自 60 日高點 −10%</span>
+        </div>
+        <div class="node cold">
+          <span class="step">06</span>
+          <span class="lbl">相關性 = 1</span>
+          <span class="cond">觸發條件：VIX &gt; 40（連黃金、公債都被拋售換現金）</span>
+        </div>
+      </div>
+      <p class="chain-note">這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 60，聯準會從未進場救 repo，約一週內自行修正。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。</p>
+    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 C — AI 從股價事件變成信用事件</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">2 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">AI capex 以舉債支應</span>
+          <span class="cond">結構性背景（人工維護）</span>
+        </div>
+        <div class="node cold" data-jump="g-ig_oas" tabindex="0" role="button">
+          <span class="step">02</span>
+          <span class="lbl">科技／超大規模業者利差跑輸</span>
+          <span class="cond">觸發條件：IG OAS 20 日擴張 &gt; 10bps</span>
+        </div>
+        <div class="node live" data-jump="g-ccc_oas" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">03</span>
+          <span class="lbl">CCC／科技利差擴張</span>
+          <span class="cond">觸發條件：CCC OAS &gt; 900bps 或 20 日擴張 &gt; 50bps</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_oas" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">指數層級信用轉折</span>
+          <span class="cond">觸發條件：HY OAS &gt; 450bps</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_ig" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">私募信用／BDC 壓力</span>
+          <span class="cond">觸發條件：HY − IG 差 &gt; 400bps</span>
+        </div>
+        <div class="node cold">
+          <span class="step">06</span>
+          <span class="lbl">廣泛信用緊縮</span>
+          <span class="cond">觸發條件：HY OAS &gt; 600bps</span>
+        </div>
+      </div>
+      <p class="chain-note">目前最被低估的傳導路徑。市場把 AI 當純上漲題材，真正的風險在融資層——它不會只是某檔晶片股跌幾趴，而是變成 Tier 2 信用事件，那才會真正擴散。關鍵背離：亞洲半導體在打崩盤級的架，而 HY OAS 仍在低檔，就證明它仍關在產業籠子裡。</p>
+    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 D — 縮表 → 準備金 → 水管</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">3 / 5 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">縮表持續 ／ 減持長天期公債</span>
+          <span class="cond">政策背景（人工維護）</span>
+        </div>
+        <div class="node live" data-jump="g-rrp" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">02</span>
+          <span class="lbl">ON RRP 緩衝墊消失</span>
+          <span class="cond">觸發條件：ON RRP &lt; $50B</span>
+        </div>
+        <div class="node live" data-jump="g-reserves" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">03</span>
+          <span class="lbl">準備金下降至稀缺</span>
+          <span class="cond">觸發條件：WRESBAL 20 期變動 &lt; −$200B</span>
+        </div>
+        <div class="node cold" data-jump="g-sofr_iorb" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">SOFR−IORB 由負轉正</span>
+          <span class="cond">觸發條件：翻正並持續 3 日以上</span>
+        </div>
+        <div class="node cold" data-jump="g-srf" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">SRF 暴用 → repo 危機</span>
+          <span class="cond">觸發條件：SRF &gt; $50B（2019/9 級別）</span>
+        </div>
+      </div>
+      <p class="chain-note">這是唯一一條會直接走進 Tier 1 的鏈，也是唯一能讓「資金水管」從綠轉黃的機制。緩衝墊（ON RRP）一旦歸零，縮表接下來會直接咬進準備金。這條鏈與鏈 A 的節點 01 共用同一個起因，兩者會互相加強。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>升級階梯</h3><span class="anno">ESCALATION · 現在在第幾階</span><span class="anno">SECTION D</span></div>
+  <p class="lede">「危機」有幾個標誌：資金斷裂、信用擴張、被迫去槓桿、相關性衝到 1。階梯由下方規則自動判定，取最高成立者。</p>
+  <div class="ladder">
+    <div class="rung here">
+      <div class="lv">1</div>
+      <div><h4>折現率／估值重定價</h4></div>
+      <div class="sig">長債殖利率 · 期限溢價 · 曲線形狀</div>
+      <div class="rd t-press">◀ 你在這裡</div>
+    </div>
+    <div class="rung">
+      <div class="lv">2</div>
+      <div><h4>信用事件</h4></div>
+      <div class="sig">HY OAS &gt; 450bps</div>
+      <div class="rd t-ok">現 284bps</div>
+    </div>
+    <div class="rung">
+      <div class="lv">3</div>
+      <div><h4>去槓桿事件</h4></div>
+      <div class="sig">VIX &gt; 30 · carry unwind · 相關性 = 1</div>
+      <div class="rd t-ok">現 VIX 15.99</div>
+    </div>
+    <div class="rung">
+      <div class="lv">4</div>
+      <div><h4>資金流動性危機</h4></div>
+      <div class="sig">SOFR−IORB 轉正 · SRF 暴用</div>
+      <div class="rd t-ok">現 0bps</div>
+    </div>
+    <div class="rung">
+      <div class="lv">5</div>
+      <div><h4>主權信譽危機</h4></div>
+      <div class="sig">標售失敗 · 殖利率升＋美元跌</div>
+      <div class="rd t-ok">未到</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>升級觸發器</h3><span class="anno">TRIPWIRES · 任一成立即重新評估</span><span class="anno">SECTION E</span></div>
+  <p class="lede">這幾條是獨立條件，不需同時成立。前三條是「長債重定價 → 真危機」的升級訊號；後幾條是盤中引信。</p>
+  <div class="wires">
+    <div class="wire">
+      <div class="anno">升級 · 信用</div>
+      <span class="st t-ok">未觸發</span>
+      <code>HY OAS &gt; 350bps</code>
+      <p>高利率開始咬進企業再融資。這是本次事件從「板塊」變成「系統」的第一個門檻。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">升級 · 水管</div>
+      <span class="st t-ok">未觸發</span>
+      <code>SOFR − IORB 由負轉正並持續 3 日</code>
+      <p>槓桿長債部位開始搶現金。這是第 4 階的入口，也是唯一真正定義流動性危機的訊號。</p>
+    </div>
+    <div class="wire fired">
+      <div class="anno">升級 · 質變</div>
+      <span class="st t-alarm">已觸發</span>
+      <code>30Y ↑ 同時 DXY ↓（5 日）</code>
+      <p>正常的期限溢價上升會吸引外資、美元走強。若殖利率升而美元跌，代表有人在逃離美元資產——不再是利率故事。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 匯率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>USD/JPY 單日 −2%</code>
+      <p>日圓急升＝ carry unwind 啟動。看速度不看水位。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 利率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>10Y／30Y 單日 +10bps</code>
+      <p>即時 risk-off。連續觸發代表期限溢價在失控而非重定價。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 波動率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>VIX &gt; 30 或 MOVE &gt; 150</code>
+      <p>進入去槓桿階的門票。MOVE 通常先動。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="cols">
+    <div><h5>本次抓取狀況</h5><ul><li>本次全部指標抓取正常。</li></ul></div>
+    <div><h5>已知資料坑</h5><ul><li>—</li></ul></div>
+    <div><h5>下次檢查重點</h5><ul><li>鏈 A 的下一個節點：企業再融資成本上升（觸發條件：HY OAS &gt; 350bps）</li><li>鏈 B 的下一個節點：BOJ 升息或當局干預（政策事件（人工維護：對照 BOJ 會議日程））</li><li>鏈 C 的下一個節點：科技／超大規模業者利差跑輸（觸發條件：IG OAS 20 日擴張 &gt; 10bps）</li><li>鏈 D 的下一個節點：SOFR−IORB 由負轉正（觸發條件：翻正並持續 3 日以上）</li></ul></div>
+  </div>
+  <p class="disc">本表由 scan.py 自動產生（掃描時間 2026-08-01T05:07:24+0000）。數值取自公開資料源並可能有時間落差或修正，不構成投資建議。閾值需隨 regime 校準；判定為「重定價」不代表不會升級，只代表升級所需的條件目前尚未成立。</p>
+</footer>
+
+</div>
+<script>
+(function(){
+  document.querySelectorAll('.node[data-jump]').forEach(function(n){
+    function go(){
+      var t=document.getElementById(n.dataset.jump);
+      if(!t) return;
+      document.querySelectorAll('tr.hl').forEach(function(r){r.classList.remove('hl')});
+      t.classList.add('hl');
+      t.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    n.addEventListener('click',go);
+    n.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}
+    });
+  });
+})();
+</script>
+</body>
+</html>
