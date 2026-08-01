@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd 版排程（比 cron 可靠：睡眠中錯過的時段，醒來會補跑）。
+
+  安裝：
+    1. 把下面兩個 __REPO_DIR__ 換成專案的絕對路徑
+    2. cp scripts/com.lrc.scan.plist ~/Library/LaunchAgents/
+    3. launchctl load -w ~/Library/LaunchAgents/com.lrc.scan.plist
+
+  移除：
+    launchctl unload -w ~/Library/LaunchAgents/com.lrc.scan.plist
+
+  StartCalendarInterval 每天 08:10 觸發一次，實際是否掃描由
+  run_scan.sh 的戳記檔（預設 3 天）決定。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.lrc.scan</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO_DIR__/scripts/run_scan.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>10</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>__REPO_DIR__/logs/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO_DIR__/logs/launchd.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LRC_INTERVAL_DAYS</key>
+    <string>3</string>
+    <key>LRC_OPEN_ON_ALERT</key>
+    <string>1</string>
+  </dict>
+</dict>
+</plist>

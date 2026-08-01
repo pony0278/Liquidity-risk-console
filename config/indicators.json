@@ -1,0 +1,505 @@
+{
+  "_comment": "指標定義。scale 用於單位換算（FRED 的 OAS 是百分比，×100 換成 bps）。bands 由上而下比對，第一個吻合者勝出。derived 的表達式可引用其他指標 key，會在日期交集上逐日計算，因此衍生指標同樣有歷史與單日變動。",
+
+  "tiers": [
+    { "n": 1, "title": "TIER 1 — 資金水管 · 慢變數 · 落後但定義危機", "short": "資金水管" },
+    { "n": 2, "title": "TIER 2 — 信用 · 中期領先 1–4 週 · 所有崩盤的領先指標", "short": "信用" },
+    { "n": 3, "title": "TIER 3 — 波動率 · 事件驅動 · 可於數小時內動作", "short": "波動率" },
+    { "n": 4, "title": "TIER 4 — 利率／匯率 · 市場流動性", "short": "利率／匯率" },
+    { "n": 5, "title": "TIER 5 — 勞動／景氣 · 緩慢但確認", "short": "勞動" }
+  ],
+
+  "indicators": [
+    {
+      "key": "sofr_iorb",
+      "label": "SOFR − IORB",
+      "tier": 1,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "SOFR − IORB",
+      "derived": "(sofr - iorb) * 100",
+      "threshold_text": "🟢 <+5 ／ 🟡 +5~+10 持續 ／ 🔴 >+10 連 3 日",
+      "bands": [
+        { "status": "ok", "max": 5, "label": "正常" },
+        { "status": "watch", "max": 10, "label": "偏緊" },
+        { "status": "alarm", "label": "水管吃緊" }
+      ],
+      "note": "負值＝現金充裕。盯「由負轉正」的翻轉，不是絕對水位。"
+    },
+    {
+      "key": "sofr",
+      "label": "SOFR",
+      "tier": 1,
+      "unit": "%",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "SOFR",
+      "sources": [{ "provider": "fred", "id": "SOFR" }],
+      "hidden": true
+    },
+    {
+      "key": "iorb",
+      "label": "IORB",
+      "tier": 1,
+      "unit": "%",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "IORB",
+      "sources": [{ "provider": "fred", "id": "IORB" }],
+      "hidden": true
+    },
+    {
+      "key": "srf",
+      "label": "SRF 使用量",
+      "tier": 1,
+      "unit": "$B",
+      "decimals": 1,
+      "freq": "每日",
+      "source_label": "NY Fed",
+      "sources": [{ "provider": "nyfed_repo", "id": "srf" }],
+      "threshold_text": "🟢 <$5B 偶發 ／ 🟡 >$20B 連續 ／ 🔴 >$50B 或連 5 日",
+      "bands": [
+        { "status": "ok", "max": 5, "label": "正常" },
+        { "status": "watch", "max": 20, "label": "留意" },
+        { "status": "press", "max": 50, "label": "明確使用" },
+        { "status": "alarm", "label": "暴用" }
+      ],
+      "note": "非 FRED，抓 NY Fed desk operations API。報稅日、季底的關鍵日使用屬正常。"
+    },
+    {
+      "key": "tga",
+      "label": "TGA 財政部帳戶",
+      "tier": 1,
+      "unit": "$B",
+      "decimals": 0,
+      "freq": "每週",
+      "source_label": "WTREGEN",
+      "sources": [{ "provider": "fred", "id": "WTREGEN" }],
+      "threshold_text": "🟢 緩降／持平 ／ 🟡 +$50B/週 ／ 🔴 搭配其他惡化",
+      "change_bands": { "window": 1, "bands": [
+        { "status": "ok", "max": 50, "label": "正常" },
+        { "status": "watch", "label": "急抽" }
+      ] },
+      "note": "看週變動，不看水位。急抽會直接扣準備金。"
+    },
+    {
+      "key": "reserves",
+      "label": "準備金餘額",
+      "tier": 1,
+      "ext": true,
+      "unit": "$B",
+      "decimals": 0,
+      "freq": "每週三",
+      "source_label": "WRESBAL",
+      "sources": [{ "provider": "fred", "id": "WRESBAL" }],
+      "threshold_text": "觀察下降斜率，非絕對水位",
+      "change_bands": { "window": 4, "bands": [
+        { "status": "ok", "min": -200, "label": "充裕" },
+        { "status": "watch", "min": -400, "label": "下降中" },
+        { "status": "press", "label": "快速流失" }
+      ] },
+      "note": "SOFR−IORB 的成因指標。能在 SOFR 翻正前幾週看到鋪陳。"
+    },
+    {
+      "key": "rrp",
+      "label": "ON RRP",
+      "tier": 1,
+      "ext": true,
+      "unit": "$B",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "RRPONTSYD",
+      "sources": [{ "provider": "fred", "id": "RRPONTSYD" }],
+      "threshold_text": "歸零＝縮表緩衝墊消失",
+      "bands": [
+        { "status": "watch", "max": 50, "label": "緩衝已失" },
+        { "status": "ok", "label": "仍有緩衝" }
+      ],
+      "note": "過去縮表先抽 RRP、抽完才輪到準備金。緩衝墊沒了＝縮表直接咬進準備金。"
+    },
+    {
+      "key": "walcl",
+      "label": "Fed 總資產",
+      "tier": 1,
+      "unit": "$B",
+      "decimals": 0,
+      "freq": "每週三",
+      "source_label": "WALCL",
+      "sources": [{ "provider": "fred", "id": "WALCL", "scale": 0.001 }],
+      "hidden": true
+    },
+    {
+      "key": "net_liquidity",
+      "label": "淨流動性",
+      "tier": 1,
+      "ext": true,
+      "unit": "$B",
+      "decimals": 0,
+      "freq": "每週",
+      "source_label": "WALCL−WTREGEN−RRPONTSYD",
+      "derived": "walcl - tga - rrp",
+      "threshold_text": "趨勢指標，觀察 4 週方向",
+      "change_bands": { "window": 4, "bands": [
+        { "status": "ok", "min": -150, "label": "持平／擴張" },
+        { "status": "watch", "min": -400, "label": "收縮中" },
+        { "status": "press", "label": "快速收縮" }
+      ] },
+      "note": "替代 M2 的正確口徑。M2 量的是非銀行大眾持有的錢，與 repo／準備金是兩個系統。"
+    },
+
+    {
+      "key": "hy_oas",
+      "label": "HY OAS",
+      "star": true,
+      "tier": 2,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "BAMLH0A0HYM2",
+      "sources": [{ "provider": "fred", "id": "BAMLH0A0HYM2", "scale": 100 }],
+      "threshold_text": "🟢 <350 ／ 🟡 350–450 ／ 🟠 450–600（減倉）／ 🔴 >600",
+      "bands": [
+        { "status": "ok", "max": 350, "label": "寬鬆" },
+        { "status": "watch", "max": 450, "label": "轉折觀察" },
+        { "status": "press", "max": 600, "label": "減倉區" },
+        { "status": "alarm", "label": "信用事件" }
+      ],
+      "note": "特性：從緊到擴張很快，一旦動就是大幅度。FRED 自 2026/4 起僅保留近 3 年觀測值，本腳本會自行累積歷史。"
+    },
+    {
+      "key": "ig_oas",
+      "label": "IG OAS",
+      "tier": 2,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "BAMLC0A0CM",
+      "sources": [{ "provider": "fred", "id": "BAMLC0A0CM", "scale": 100 }],
+      "threshold_text": "🟢 <100 ／ 🟡 100–130 ／ 🔴 >150",
+      "bands": [
+        { "status": "ok", "max": 100, "label": "正常" },
+        { "status": "watch", "max": 150, "label": "擴張中" },
+        { "status": "alarm", "label": "信用事件" }
+      ],
+      "note": "AI 相關發行供給潮是今年最大的技術面變數。"
+    },
+    {
+      "key": "ccc_oas",
+      "label": "CCC OAS",
+      "tier": 2,
+      "ext": true,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "BAMLH0A3HYC",
+      "sources": [{ "provider": "fred", "id": "BAMLH0A3HYC", "scale": 100 }],
+      "threshold_text": "🟢 <900 ／ 🟡 900–1100 ／ 🔴 >1300",
+      "bands": [
+        { "status": "ok", "max": 900, "label": "正常" },
+        { "status": "watch", "max": 1100, "label": "底層分化" },
+        { "status": "alarm", "label": "信用事件" }
+      ],
+      "note": "指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。"
+    },
+    {
+      "key": "hy_ig",
+      "label": "HY − IG 差",
+      "tier": 2,
+      "ext": true,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "兩者相減",
+      "derived": "hy_oas - ig_oas",
+      "threshold_text": "持續擴張＝信用循環轉折",
+      "bands": [
+        { "status": "ok", "max": 300, "label": "正常" },
+        { "status": "watch", "max": 400, "label": "分化中" },
+        { "status": "press", "label": "循環轉折" }
+      ],
+      "note": "位於 2009 後區間的緊端時，代表信用循環尚未轉向。"
+    },
+
+    {
+      "key": "move",
+      "label": "MOVE",
+      "star": true,
+      "tier": 3,
+      "unit": "",
+      "decimals": 1,
+      "freq": "每日",
+      "source_label": "^MOVE",
+      "sources": [{ "provider": "yahoo", "id": "^MOVE" }],
+      "threshold_text": "🟢 <100 ／ 🟡 100–130 ／ 🟠 130–150 ／ 🔴 >150",
+      "bands": [
+        { "status": "ok", "max": 100, "label": "正常" },
+        { "status": "watch", "max": 130, "label": "警示" },
+        { "status": "press", "max": 150, "label": "債市失序" },
+        { "status": "alarm", "label": "危機級" }
+      ],
+      "note": "通常領先 VIX 1–3 週。FRED 沒有此系列，走 Yahoo。"
+    },
+    {
+      "key": "vix",
+      "label": "VIX",
+      "tier": 3,
+      "unit": "",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "^VIX ／ VIXCLS",
+      "sources": [
+        { "provider": "yahoo", "id": "^VIX" },
+        { "provider": "fred", "id": "VIXCLS" }
+      ],
+      "threshold_text": "🟢 <20 ／ 🟡 20–25 ／ 🟠 >25 持續 ／ 🔴 >30",
+      "bands": [
+        { "status": "ok", "max": 20, "label": "正常" },
+        { "status": "watch", "max": 25, "label": "警示" },
+        { "status": "press", "max": 30, "label": "壓力" },
+        { "status": "alarm", "label": "恐慌" }
+      ],
+      "note": "16 以下是順風區；破 30 才進入去槓桿階。"
+    },
+    {
+      "key": "vvix",
+      "label": "VVIX",
+      "tier": 3,
+      "unit": "",
+      "decimals": 1,
+      "freq": "每日",
+      "source_label": "^VVIX",
+      "sources": [{ "provider": "yahoo", "id": "^VVIX" }],
+      "threshold_text": "🟢 <100 ／ 🟡 100–110 ／ 🟠 110–130 ／ 🔴 >130",
+      "bands": [
+        { "status": "ok", "max": 100, "label": "穩定" },
+        { "status": "watch", "max": 110, "label": "留意" },
+        { "status": "press", "max": 130, "label": "risk-off" },
+        { "status": "alarm", "label": "恐慌" }
+      ],
+      "note": "尾部風險定價（對恐慌的恐慌）。VIX 低但 VVIX 高＝市場在偷買保險。"
+    },
+
+    {
+      "key": "y30",
+      "label": "30Y 殖利率",
+      "tier": 4,
+      "unit": "%",
+      "decimals": 3,
+      "freq": "每日",
+      "source_label": "^TYX ／ DGS30",
+      "sources": [
+        { "provider": "yahoo", "id": "^TYX" },
+        { "provider": "fred", "id": "DGS30" }
+      ],
+      "threshold_text": "🟢 <4.8 ／ 🟡 4.8–5.0 ／ 🟠 5.0–5.25 ／ 🔴 >5.25",
+      "bands": [
+        { "status": "ok", "max": 4.8, "label": "正常" },
+        { "status": "watch", "max": 5.0, "label": "警示" },
+        { "status": "press", "max": 5.25, "label": "明確壓力" },
+        { "status": "alarm", "label": "失控區" }
+      ],
+      "note": "單日 +10bps ＝ 即時 risk-off（見盤中引信）。水位重要，但黏著度更重要。"
+    },
+    {
+      "key": "y10",
+      "label": "10Y 殖利率",
+      "tier": 4,
+      "unit": "%",
+      "decimals": 3,
+      "freq": "每日",
+      "source_label": "^TNX ／ DGS10",
+      "sources": [
+        { "provider": "yahoo", "id": "^TNX" },
+        { "provider": "fred", "id": "DGS10" }
+      ],
+      "threshold_text": "🟢 <4.5 ／ 🟡 4.5–4.8 ／ 🟠 4.8–5.0 ／ 🔴 >5.0",
+      "bands": [
+        { "status": "ok", "max": 4.5, "label": "正常" },
+        { "status": "watch", "max": 4.8, "label": "警示" },
+        { "status": "press", "max": 5.0, "label": "明確壓力" },
+        { "status": "alarm", "label": "失控區" }
+      ],
+      "note": "房貸基準利率。與 30Y 的關係決定壓力是「升息預期」還是「期限溢價」。"
+    },
+    {
+      "key": "y2",
+      "label": "2Y 殖利率",
+      "tier": 4,
+      "unit": "%",
+      "decimals": 3,
+      "freq": "每日",
+      "source_label": "^FVX ／ DGS2",
+      "sources": [{ "provider": "fred", "id": "DGS2" }],
+      "threshold_text": "觀察與長端的方向差",
+      "note": "2Y 跌而 30Y 噴 ＝ 期限溢價；兩者同漲 ＝ 升息預期。"
+    },
+    {
+      "key": "slope_2s30s",
+      "label": "2s30s 斜率",
+      "tier": 4,
+      "ext": true,
+      "unit": "bps",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "DGS30 − DGS2",
+      "derived": "(y30 - y2) * 100",
+      "threshold_text": "短端跌＋長端噴＝熊市陡化",
+      "bands": [
+        { "status": "ok", "max": 60, "label": "正常" },
+        { "status": "watch", "max": 90, "label": "陡化中" },
+        { "status": "press", "label": "明顯陡化" }
+      ],
+      "note": "只看 10Y 水位會錯過重點——是曲線形狀在告訴你壓力來自哪裡。"
+    },
+    {
+      "key": "term_premium",
+      "label": "10Y 期限溢價",
+      "tier": 4,
+      "ext": true,
+      "unit": "%",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "THREEFYTP10（Kim-Wright）",
+      "sources": [{ "provider": "fred", "id": "THREEFYTP10" }],
+      "threshold_text": "趨勢與黏著度，非單日",
+      "bands": [
+        { "status": "ok", "max": 0.5, "label": "正常" },
+        { "status": "watch", "max": 1.0, "label": "升高" },
+        { "status": "press", "label": "明確壓力" }
+      ],
+      "note": "NY Fed ACM 只有 xls，這裡改用 FRED 的 Kim-Wright 模型（THREEFYTP10），口徑不同但方向一致。慢變數，不會像 VIX 隔天回落。"
+    },
+    {
+      "key": "usdjpy",
+      "label": "USD/JPY",
+      "star": true,
+      "tier": 4,
+      "unit": "",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "USDJPY=X",
+      "sources": [
+        { "provider": "yahoo", "id": "JPY=X" },
+        { "provider": "fred", "id": "DEXJPUS" }
+      ],
+      "threshold_text": "水位不設閾值；警報看速度（單日 −2% ＝ carry unwind）",
+      "note": "水位高本身不是警報，但代表引信更長更滿。危險在速度的兩個極端。"
+    },
+    {
+      "key": "dxy",
+      "label": "DXY 美元指數",
+      "tier": 4,
+      "ext": true,
+      "unit": "",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "DX-Y.NYB",
+      "sources": [{ "provider": "yahoo", "id": "DX-Y.NYB" }],
+      "threshold_text": "與 30Y 同向＝正常；反向＝質變",
+      "note": "若變成殖利率升＋美元跌，即升級為主權信譽問題（見升級觸發器）。"
+    },
+    {
+      "key": "wti",
+      "label": "WTI 油價",
+      "tier": 4,
+      "ext": true,
+      "unit": "$",
+      "decimals": 2,
+      "freq": "每日",
+      "source_label": "CL=F ／ DCOILWTICO",
+      "sources": [
+        { "provider": "yahoo", "id": "CL=F" },
+        { "provider": "fred", "id": "DCOILWTICO" }
+      ],
+      "threshold_text": "單日 ±5% 進盤中引信",
+      "bands": [
+        { "status": "ok", "max": 85, "label": "正常" },
+        { "status": "watch", "max": 100, "label": "反覆" },
+        { "status": "press", "label": "通膨壓力" }
+      ],
+      "note": "幾乎是所有地緣風險的總開關。"
+    },
+
+    {
+      "key": "ndx",
+      "label": "Nasdaq 100",
+      "tier": 4,
+      "unit": "",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "^NDX",
+      "sources": [{ "provider": "yahoo", "id": "^NDX" }],
+      "hidden": true
+    },
+    {
+      "key": "sox",
+      "label": "費城半導體",
+      "tier": 4,
+      "unit": "",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "^SOX",
+      "sources": [{ "provider": "yahoo", "id": "^SOX" }],
+      "hidden": true
+    },
+    {
+      "key": "n225",
+      "label": "日經 225",
+      "tier": 4,
+      "unit": "",
+      "decimals": 0,
+      "freq": "每日",
+      "source_label": "^N225",
+      "sources": [{ "provider": "yahoo", "id": "^N225" }],
+      "hidden": true
+    },
+    {
+      "key": "claims",
+      "label": "初領失業金 4 週均",
+      "tier": 5,
+      "unit": "K",
+      "decimals": 0,
+      "scale_display": 0.001,
+      "freq": "每週四",
+      "source_label": "IC4WSA",
+      "sources": [{ "provider": "fred", "id": "IC4WSA", "scale": 0.001 }],
+      "threshold_text": "🟢 <230K ／ 🟡 230–250 ／ 🟠 >250 連 3 週 ／ 🔴 >280K",
+      "bands": [
+        { "status": "ok", "max": 230, "label": "穩定" },
+        { "status": "watch", "max": 250, "label": "轉弱" },
+        { "status": "press", "max": 280, "label": "明確走弱" },
+        { "status": "alarm", "label": "衰退訊號" }
+      ],
+      "note": "反方向意外（數據突然轉壞）常是最未被定價的風險。"
+    },
+    {
+      "key": "payrolls",
+      "label": "非農就業（月增）",
+      "tier": 5,
+      "unit": "K",
+      "decimals": 0,
+      "freq": "每月",
+      "source_label": "PAYEMS 月差",
+      "derived_diff": "payems_level",
+      "threshold_text": "正成長放緩＝鴿派解壓 ／ 趨近 0 或負＝衰退恐慌",
+      "bands": [
+        { "status": "press", "max": 0, "label": "轉負" },
+        { "status": "watch", "max": 75, "label": "趨近停滯" },
+        { "status": "ok", "label": "放緩但正成長" }
+      ],
+      "note": "在「怕升息」的 regime 下，偏軟＝鴿派利多；崩至趨零則翻為衰退恐慌。"
+    },
+    {
+      "key": "payems_level",
+      "label": "非農就業人數",
+      "tier": 5,
+      "unit": "K",
+      "decimals": 0,
+      "freq": "每月",
+      "source_label": "PAYEMS",
+      "sources": [{ "provider": "fred", "id": "PAYEMS" }],
+      "hidden": true
+    }
+  ]
+}

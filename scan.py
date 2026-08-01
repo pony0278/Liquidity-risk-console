@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""流動性與尾部風險自動掃描。
+
+  python3 scan.py                 # 完整掃描：抓資料 → 判定 → 產報表
+  python3 scan.py --offline       # 只用快取／歷史重算（不連網）
+  python3 scan.py --self-test     # 檢查設定檔與規則表達式，不連網
+
+離開碼：
+  0  正常
+  10 有升級觸發器或盤中引信成立（給排程器當「該看一眼」的訊號）
+  20 部分指標抓取失敗（判定仍完成，但有缺口）
+  30 兩者都有
+  1  掃描本身失敗
+"""
+
+import argparse
+import json
+import os
+import sys
+import traceback
+from datetime import datetime, timezone
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from lrconsole import diff as diff_mod  # noqa: E402
+from lrconsole import history as history_mod  # noqa: E402
+from lrconsole import notify as notify_mod  # noqa: E402
+from lrconsole import render as render_mod  # noqa: E402
+from lrconsole.evaluate import build_snapshot, resolve_series  # noqa: E402
+from lrconsole.expr import ExprError, referenced_names  # noqa: E402
+from lrconsole.fetch import Fetcher  # noqa: E402
+from lrconsole.series import Series, build_metrics  # noqa: E402
+
+EXIT_OK = 0
+EXIT_TRIPWIRE = 10
+EXIT_DATA_GAP = 20
+EXIT_ERROR = 1
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="流動性與尾部風險自動掃描")
+    parser.add_argument("--config-dir", default=os.path.join(BASE_DIR, "config"))
+    parser.add_argument("--data-dir", default=os.path.join(BASE_DIR, "data"))
+    parser.add_argument("--out-dir", default=os.path.join(BASE_DIR, "reports"))
+    parser.add_argument("--offline", action="store_true",
+                        help="不連網，只用快取與 data/history.csv 重算")
+    parser.add_argument("--no-fetch", action="store_true",
+                        help="完全跳過抓取，純粹用 data/history.csv 重畫報表")
+    parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--history-days", type=int, default=1500,
+                        help="history.csv 每個系列保留的觀測筆數上限")
+    parser.add_argument("--notify", choices=["auto", "always", "never"], default="auto",
+                        help="auto＝只在有觸發或有變化時推播")
+    parser.add_argument("--self-test", action="store_true",
+                        help="只檢查設定檔與表達式，不抓資料、不寫報表")
+    parser.add_argument("--quiet", action="store_true")
+    return parser.parse_args(argv)
+
+
+def log_factory(quiet):
+    def log(*args):
+        if not quiet:
+            print(*args, flush=True)
+    return log
+
+
+def load_configs(config_dir):
+    with open(os.path.join(config_dir, "indicators.json"), encoding="utf-8") as handle:
+        indicators_cfg = json.load(handle)
+    with open(os.path.join(config_dir, "rules.json"), encoding="utf-8") as handle:
+        rules_cfg = json.load(handle)
+    rules_cfg["_tiers"] = indicators_cfg.get("tiers", [])
+    return indicators_cfg["indicators"], rules_cfg
+
+
+def known_variable_names(indicator_cfg):
+    """self-test 用：所有可能出現在表達式裡的變數名稱。"""
+    empty = {i["key"]: Series() for i in indicator_cfg}
+    unit_map = {i["key"]: i.get("unit", "") for i in indicator_cfg}
+    return set(build_metrics(empty, unit_map))
+
+
+def self_test(indicator_cfg, rules_cfg, log):
+    problems = []
+    keys = {i["key"] for i in indicator_cfg}
+    if len(keys) != len(indicator_cfg):
+        problems.append("indicators.json 有重複的 key")
+
+    for indicator in indicator_cfg:
+        if not indicator.get("sources") and not indicator.get("derived") \
+                and not indicator.get("derived_diff"):
+            problems.append("%s 既沒有 sources 也不是 derived" % indicator["key"])
+        if indicator.get("derived"):
+            missing = referenced_names(indicator["derived"]) - keys
+            if missing:
+                problems.append("%s 的 derived 引用了不存在的指標：%s"
+                                % (indicator["key"], ", ".join(sorted(missing))))
+        if indicator.get("derived_diff") and indicator["derived_diff"] not in keys:
+            problems.append("%s 的 derived_diff 指向不存在的指標" % indicator["key"])
+
+    names = known_variable_names(indicator_cfg)
+
+    def check(expr, where):
+        if not expr:
+            return
+        try:
+            missing = referenced_names(expr) - names
+        except SyntaxError as exc:
+            problems.append("%s 表達式語法錯誤：%s（%s）" % (where, expr, exc))
+            return
+        if missing:
+            problems.append("%s 引用了不存在的變數：%s（%s）"
+                            % (where, ", ".join(sorted(missing)), expr))
+
+    for wire in rules_cfg.get("tripwires", []):
+        check(wire.get("expr"), "引信 %s" % wire.get("id"))
+    for rung in rules_cfg.get("ladder", []):
+        check(rung.get("expr"), "階梯 L%s" % rung.get("level"))
+        check_vars = set(rung.get("readout_vars", [])) - names
+        if check_vars:
+            problems.append("階梯 L%s 的 readout_vars 不存在：%s"
+                            % (rung.get("level"), ", ".join(sorted(check_vars))))
+    for chain in rules_cfg.get("chains", []):
+        for node in chain["nodes"]:
+            check(node.get("expr"), "%s／%s" % (chain["id"], node.get("step")))
+            if node.get("jump") and node["jump"][2:] not in keys:
+                problems.append("%s／%s 的 jump 指向不存在的指標：%s"
+                                % (chain["id"], node.get("step"), node["jump"]))
+    for card in rules_cfg.get("crowding", []):
+        check(card.get("state_expr"), "擁擠層 %s" % card.get("title"))
+        missing = set(card.get("live_vars", [])) - names
+        if missing:
+            problems.append("擁擠層 %s 的 live_vars 不存在：%s"
+                            % (card.get("title"), ", ".join(sorted(missing))))
+
+    for problem in problems:
+        log("  ✗ %s" % problem)
+    if not problems:
+        log("  ✓ 設定檔與所有表達式檢查通過（%d 個指標、%d 條引信、%d 條傳導鏈）"
+            % (len(indicator_cfg), len(rules_cfg.get("tripwires", [])),
+               len(rules_cfg.get("chains", []))))
+    return problems
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    log = log_factory(args.quiet)
+    scan_time = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    log("== 流動性與尾部風險掃描 %s ==" % scan_time)
+
+    indicator_cfg, rules_cfg = load_configs(args.config_dir)
+
+    log("\n[0/5] 設定檔自我檢查")
+    problems = self_test(indicator_cfg, rules_cfg, log)
+    if args.self_test:
+        return EXIT_OK if not problems else EXIT_ERROR
+    if problems:
+        log("  設定檔有問題，先修好再跑。")
+        return EXIT_ERROR
+
+    history_path = os.path.join(args.data_dir, "history.csv")
+    cache_dir = os.path.join(args.data_dir, "cache")
+
+    log("\n[1/5] 讀取本地歷史 %s" % history_path)
+    history = history_mod.load_history(history_path)
+    log("  已有 %d 個序列、%d 個觀測點"
+        % (len(history), sum(len(s) for s in history.values())))
+
+    fetched = {}
+    data_notes = []
+    if args.no_fetch:
+        log("\n[2/5] 跳過抓取（--no-fetch），直接用本地歷史重算")
+    else:
+        log("\n[2/5] 抓取資料" + ("（offline 模式：只用快取）" if args.offline else ""))
+        fetcher = Fetcher(cache_dir=cache_dir, timeout=args.timeout, retries=args.retries,
+                          offline=args.offline, log=log)
+        for indicator in indicator_cfg:
+            sources = indicator.get("sources")
+            if not sources:
+                continue
+            key = indicator["key"]
+            last = None
+            for source in sources:
+                result = fetcher.fetch(key, source)
+                last = result
+                if result.ok:
+                    break
+            fetched[key] = last
+            if last.ok:
+                log("  ✓ %-14s %-6s %4d 點，最新 %s %s"
+                    % (key, last.provider, len(last.series),
+                       last.series.latest_date(), last.detail))
+            else:
+                log("  ✗ %-14s %s" % (key, last.detail))
+                data_notes.append("%s 抓取失敗：%s" % (indicator.get("label", key), last.detail))
+
+    log("\n[3/5] 合併歷史並計算衍生序列")
+    series_map, notes = resolve_series(indicator_cfg, fetched, history,
+                                       record_failures=not args.no_fetch)
+    log("  可用序列 %d 個" % len(series_map))
+    history_mod.save_history(history_path, series_map, keep=args.history_days)
+    log("  已寫回 %s" % history_path)
+
+    log("\n[4/5] 套用規則")
+    snapshot = build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_notes)
+    previous = history_mod.load_json(os.path.join(args.out_dir, "latest.json"))
+    changes = diff_mod.diff_snapshots(snapshot, previous)
+
+    # 抓取「成功」但序列是空的（或整個沒有歷史）同樣是缺口。不另外標出來的話，
+    # --no-fetch 或來源默默回空值時會得到一份全灰的報表卻回報離開碼 0。
+    for indicator in snapshot["indicators"]:
+        if indicator["hidden"] or indicator["value"] is not None:
+            continue
+        note = "%s 無可用資料" % indicator["label"]
+        if not any(note.split()[0] in existing for existing in data_notes):
+            data_notes.append(note)
+    snapshot["data_notes"] = data_notes
+
+    fired = [w for w in snapshot["tripwires"] if w["state"] is True]
+    log("  判定：第 %d 階 · %s" % (snapshot["level"], snapshot["verdict"]["headline"]))
+    log("  觸發中的引信：%s" % ("、".join(w["code"] for w in fired) if fired else "無"))
+
+    log("\n[5/5] 產出報表")
+    date_tag = scan_time[:10]
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    html_text = render_mod.render_html(snapshot, changes)
+    for name in ("index.html", "console-%s.html" % date_tag):
+        path = os.path.join(args.out_dir, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(html_text)
+        log("  寫出 %s" % path)
+
+    summary = diff_mod.render_markdown_summary(snapshot, changes)
+    summary_path = os.path.join(args.out_dir, "summary-%s.md" % date_tag)
+    with open(summary_path, "w", encoding="utf-8") as handle:
+        handle.write(summary)
+    log("  寫出 %s" % summary_path)
+
+    history_mod.save_json(os.path.join(args.out_dir, "latest.json"), snapshot)
+    history_mod.save_json(os.path.join(args.out_dir, "snapshot-%s.json" % date_tag), snapshot)
+
+    log("\n--- 本次變化 ---")
+    for severity, text in changes:
+        log("  %s %s" % ({"alert": "🔴", "warn": "🟡", "info": "·"}.get(severity, "·"), text))
+
+    should_notify = args.notify == "always" or (
+        args.notify == "auto" and (fired or any(s in ("alert", "warn") for s, _ in changes)))
+    if should_notify:
+        ok, detail = notify_mod.send_webhook(notify_mod.build_message(snapshot, changes))
+        log("\n推播：%s" % detail)
+
+    exit_code = EXIT_OK
+    if fired:
+        exit_code += EXIT_TRIPWIRE
+    if data_notes:
+        exit_code += EXIT_DATA_GAP
+    log("\n完成，離開碼 %d" % exit_code)
+    return exit_code
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        sys.exit(EXIT_ERROR)

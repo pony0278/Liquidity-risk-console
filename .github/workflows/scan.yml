@@ -1,0 +1,88 @@
+name: 流動性風險掃描
+
+# 每天 12:00 UTC（台灣 20:00）叫一次，run_scan.sh 的戳記檔會讓實際掃描
+# 維持每 3 天一次。用「每天叫 + 戳記」而不是 cron 的 */3，是因為 */3 在
+# 月底會有一天的縫，而 GitHub 的排程本身也可能延遲數十分鐘。
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "忽略 3 天間隔，立刻掃一次"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lrc-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 設定檔自我檢查
+        run: python3 scan.py --self-test
+
+      - name: 執行掃描
+        id: scan
+        env:
+          # 有 FRED API key 會走官方 API（比 CSV 端點穩），沒有也能跑。
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          LRC_WEBHOOK_URL: ${{ secrets.LRC_WEBHOOK_URL }}
+          LRC_OPEN_ON_ALERT: "0"
+        run: |
+          set +e
+          bash scripts/run_scan.sh ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # 10=有引信觸發、20=部分資料缺、30=兩者，這些都算成功跑完；
+          # 只有 1 才是掃描本身壞掉。
+          if [ "$status" -eq 1 ]; then exit 1; fi
+          exit 0
+
+      - name: 提交報表與歷史
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data reports
+          if git diff --cached --quiet; then
+            echo "沒有變化，不提交。"
+          else
+            git commit -m "掃描 $(date -u +%Y-%m-%d)（離開碼 ${{ steps.scan.outputs.status }}）"
+            for i in 1 2 3 4; do
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && break
+              sleep $((2 ** i))
+            done
+          fi
+
+      - name: 上傳報表
+        uses: actions/upload-artifact@v4
+        with:
+          name: liquidity-console-${{ github.run_number }}
+          path: |
+            reports/index.html
+            reports/summary-*.md
+          retention-days: 90
+
+      - name: 引信觸發時開 issue
+        if: steps.scan.outputs.status == '10' || steps.scan.outputs.status == '30'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          summary=$(ls -t reports/summary-*.md | head -1)
+          gh issue create \
+            --title "⚠ 流動性掃描：$(date -u +%Y-%m-%d) 有引信觸發" \
+            --body-file "$summary" \
+            --label "risk-scan" || echo "開 issue 失敗（可能是沒有 risk-scan 標籤），略過。"
