@@ -148,6 +148,12 @@ class Fetcher:
             series, stale = handler(source)
         except Exception as exc:  # noqa: BLE001
             return FetchResult(key, ok=False, provider=provider, detail=str(exc))
+        # 丟掉未來日期的觀測。FRED 的政策利率（IORB）會往前補到當期結尾，
+        # Yahoo 也會給下一場交易時段的空白 bar；留著會讓「資料截至」變成
+        # 未來日期，也可能被當成最新值去算單日變動。
+        cutoff = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        series = Series([(d, v) for d, v in series.points if d <= cutoff])
+
         scale = float(source.get("scale", 1.0))
         if scale != 1.0:
             series = Series([(d, v * scale) for d, v in series.points])

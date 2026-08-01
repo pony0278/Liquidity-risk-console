@@ -15,6 +15,9 @@ on:
 
 permissions:
   contents: write
+  # 明確寫出 permissions 之後，沒列到的權限一律變成 none——只給 contents
+  # 的話最後那步開 issue／建標籤會直接 403。
+  issues: write
 
 concurrency:
   group: lrc-scan
@@ -26,9 +29,9 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -68,7 +71,7 @@ jobs:
           fi
 
       - name: 上傳報表
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: liquidity-console-${{ github.run_number }}
           path: |
@@ -82,7 +85,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           summary=$(ls -t reports/summary-*.md | head -1)
+          # 標籤不存在時 gh 會整個開 issue 失敗，所以先確保它在（已存在就無視）
+          gh label create "risk-scan" --color B04E1E --description "自動掃描的引信觸發" 2>/dev/null || true
           gh issue create \
             --title "⚠ 流動性掃描：$(date -u +%Y-%m-%d) 有引信觸發" \
             --body-file "$summary" \
-            --label "risk-scan" || echo "開 issue 失敗（可能是沒有 risk-scan 標籤），略過。"
+            --label "risk-scan" || echo "開 issue 失敗，略過（不影響掃描結果）。"

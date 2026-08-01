@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -341,6 +342,15 @@ class FetchParsingTests(unittest.TestCase):
         self.assertAlmostEqual(points["2026-07-29"], 25.0, msg="同日多筆要加總，單位換成 $B")
         self.assertEqual(points["2026-07-30"], 0.0, "沒有操作的營業日要補零")
 
+    def test_future_dated_points_are_dropped(self):
+        """FRED 的 IORB 會往前補到當期結尾，未來日期不能進序列。"""
+        future = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        csv_text = "observation_date,IORB\n2026-01-02,3.65\n%s,3.65\n%s,3.65\n" % (today, future)
+        result = self._fetcher(csv_text).fetch("iorb", {"provider": "fred", "id": "IORB"})
+        self.assertTrue(result.ok)
+        self.assertEqual(result.series.latest_date(), today)
+
     def test_unknown_shape_fails_cleanly(self):
         result = self._fetcher(json.dumps({"whatever": 1})).fetch(
             "srf", {"provider": "nyfed_repo", "id": "srf"})
@@ -351,6 +361,20 @@ class FetchParsingTests(unittest.TestCase):
 class SelfTestTests(unittest.TestCase):
     def test_shipped_config_passes(self):
         self.assertEqual(scan.main(["--self-test", "--quiet"]), 0)
+
+    def test_million_denominated_fred_series_are_scaled(self):
+        """WTREGEN／WRESBAL／WALCL 在 FRED 的單位是百萬美元。
+
+        漏掉換算不會讓任何測試變紅，只會讓報表出現 $910776B 這種數字，
+        還會連累 net_liquidity 與週變動的閾值——所以在這裡釘住。
+        """
+        with open(os.path.join(BASE_DIR, "config", "indicators.json"), encoding="utf-8") as handle:
+            indicators = {i["key"]: i for i in json.load(handle)["indicators"]}
+        for key in ("tga", "reserves", "walcl"):
+            scale = indicators[key]["sources"][0].get("scale")
+            self.assertEqual(scale, 0.001, "%s 少了百萬→十億的換算" % key)
+        # RRPONTSYD 本來就是十億，多套一次反而會錯。
+        self.assertNotIn("scale", indicators["rrp"]["sources"][0])
 
 
 if __name__ == "__main__":

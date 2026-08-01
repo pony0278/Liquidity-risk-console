@@ -75,7 +75,7 @@
       "decimals": 0,
       "freq": "每週",
       "source_label": "WTREGEN",
-      "sources": [{ "provider": "fred", "id": "WTREGEN" }],
+      "sources": [{ "provider": "fred", "id": "WTREGEN", "scale": 0.001 }],
       "threshold_text": "🟢 緩降／持平 ／ 🟡 +$50B/週 ／ 🔴 搭配其他惡化",
       "change_bands": { "window": 1, "bands": [
         { "status": "ok", "max": 50, "label": "正常" },
@@ -92,7 +92,7 @@
       "decimals": 0,
       "freq": "每週三",
       "source_label": "WRESBAL",
-      "sources": [{ "provider": "fred", "id": "WRESBAL" }],
+      "sources": [{ "provider": "fred", "id": "WRESBAL", "scale": 0.001 }],
       "threshold_text": "觀察下降斜率，非絕對水位",
       "change_bands": { "window": 4, "bands": [
         { "status": "ok", "min": -200, "label": "充裕" },
@@ -194,10 +194,11 @@
       "freq": "每日",
       "source_label": "BAMLH0A3HYC",
       "sources": [{ "provider": "fred", "id": "BAMLH0A3HYC", "scale": 100 }],
-      "threshold_text": "🟢 <900 ／ 🟡 900–1100 ／ 🔴 >1300",
+      "threshold_text": "🟢 <1100 ／ 🟡 1100–1300 ／ 🟠 1300–1600 ／ 🔴 >1600",
       "bands": [
-        { "status": "ok", "max": 900, "label": "正常" },
-        { "status": "watch", "max": 1100, "label": "底層分化" },
+        { "status": "ok", "max": 1100, "label": "正常" },
+        { "status": "watch", "max": 1300, "label": "底層分化" },
+        { "status": "press", "max": 1600, "label": "明確擴張" },
         { "status": "alarm", "label": "信用事件" }
       ],
       "note": "指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。"
