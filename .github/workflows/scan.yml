@@ -19,6 +19,7 @@ on:
       - "lrconsole/**"
       - "templates/**"
       - "config/**"
+      - "scan.py"
       - ".github/workflows/scan.yml"
 
 permissions:
