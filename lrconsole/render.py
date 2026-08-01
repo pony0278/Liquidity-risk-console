@@ -145,6 +145,58 @@ def _crowding(snapshot):
         '</section>' % "\n".join(cards))
 
 
+def _sparkline(values, status, width=104, height=22):
+    """伺服器端產生的火花線。
+
+    刻意不用 JS：這張表是密度優先的工程視圖，關掉 JS 或存成單一檔案時
+    走勢也該還在。近 20 個觀測用狀態色，其餘弱化——整條線都在喊等於沒喊。
+    """
+    if not values or len(values) < 2:
+        return '<span class="nospark">—</span>'
+
+    low, high = min(values), max(values)
+    span = (high - low) or abs(high) or 1.0
+    n = len(values)
+    pad = 2
+
+    def x(i):
+        return i / (n - 1) * width
+
+    def y(v):
+        return height - pad - (v - low) / span * (height - pad * 2)
+
+    def path(start):
+        return "".join(
+            ("M" if i == start else "L") + "%.1f %.1f" % (x(i), y(values[i]))
+            for i in range(start, n))
+
+    recent = max(0, n - 20)
+    zero = ""
+    if low < 0 < high:
+        zero = '<line class="zl" x1="0" y1="%.1f" x2="%d" y2="%.1f"/>' % (
+            y(0), width, y(0))
+
+    return (
+        '<svg class="sk" viewBox="0 0 %d %d" preserveAspectRatio="none" '
+        'role="img" aria-label="近 %d 個觀測走勢，區間 %.4g 至 %.4g">'
+        '%s<path class="sl" d="%s"/><path class="sr %s" d="%s"/>'
+        '<circle class="sh %s" cx="%.1f" cy="%.1f" r="2.2"/></svg>'
+        % (width, height, n, low, high, zero, path(0),
+           _tcls(status), path(recent), _tcls(status), x(n - 1), y(values[-1])))
+
+
+def _track_bar(track):
+    """閾值帶畫成一條軌道，直線是現在的位置。"""
+    if not track or not track.get("segments"):
+        return ""
+    segments = "".join(
+        '<i class="bg-%s" style="width:%.2f%%"></i>'
+        % (_STATUS_CLASS.get(seg["status"], "unknown"), seg["width_pct"])
+        for seg in track["segments"])
+    return ('<span class="bandbar">%s<b style="left:calc(%.2f%% - 1px)"></b></span>'
+            % (segments, track["marker_pct"]))
+
+
 def _gauges(snapshot):
     rows = []
     by_tier = {}
@@ -153,9 +205,10 @@ def _gauges(snapshot):
             continue
         by_tier.setdefault(indicator["tier"], []).append(indicator)
 
+    series = snapshot.get("_series") or {}
     for tier in sorted(by_tier):
         title = snapshot["tiers"].get(tier, {}).get("title") or "TIER %d" % tier
-        rows.append('      <tr class="tier"><td colspan="8">%s</td></tr>' % _esc(title))
+        rows.append('      <tr class="tier"><td colspan="9">%s</td></tr>' % _esc(title))
         for indicator in by_tier[tier]:
             change = ('<span class="chg">%s</span>' % _esc(indicator["change_display"])) \
                 if indicator["change_display"] else ""
@@ -164,7 +217,8 @@ def _gauges(snapshot):
                 '      <tr id="g-%s"%s>\n'
                 '        <td class="k">%s%s</td>\n'
                 '        <td class="v %s">%s%s</td>\n'
-                '        <td class="th">%s</td>\n'
+                '        <td class="sp">%s<span class="rg">%s</span></td>\n'
+                '        <td class="th">%s%s</td>\n'
                 '        <td class="st %s">%s%s</td>\n'
                 '        <td class="dt">%s%s</td>\n'
                 '        <td class="src">%s</td>\n'
@@ -175,6 +229,10 @@ def _gauges(snapshot):
                     ' class="ext"' if indicator["ext"] else "",
                     _esc(indicator["label"]), " ⭐" if indicator["star"] else "",
                     _tcls(indicator["status"]), _esc(indicator["display"]), change,
+                    _sparkline((series.get(indicator["key"]) or {}).get("values"),
+                               indicator["status"]),
+                    _esc(indicator.get("range_text", "")),
+                    _track_bar(indicator.get("track")),
                     _esc(indicator["threshold_text"]),
                     _tcls(indicator["status"]), _mark(indicator["status"]),
                     _esc(indicator["status_label"]),
@@ -193,7 +251,8 @@ def _gauges(snapshot):
         '<strong>慢燈</strong>（每週）＝ SOFR−IORB、準備金、TGA、失業金。</p>\n'
         '  <div class="wrap">\n'
         '  <table>\n'
-        '    <thead><tr><th>指標</th><th>最新</th><th>閾值帶</th><th>燈號</th>'
+        '    <thead><tr><th>指標</th><th>最新</th><th>走勢 · 區間位置</th>'
+        '<th>閾值帶</th><th>燈號</th>'
         '<th>資料日</th><th>頻率</th><th>資料源</th><th>註記</th></tr></thead>\n'
         '    <tbody>\n%s\n    </tbody>\n'
         '  </table>\n  </div>\n'
@@ -415,7 +474,9 @@ _SCRIPT = """
 """
 
 
-def render_html(snapshot, changes):
+def render_html(snapshot, changes, series=None):
+    if series is not None:
+        snapshot = dict(snapshot, _series=series)
     body = "\n\n".join([
         _header(snapshot),
         _verdict(snapshot),

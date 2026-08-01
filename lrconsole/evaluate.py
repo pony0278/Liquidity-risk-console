@@ -67,23 +67,31 @@ def _band_track(bands, value):
     hi = max(edges[-1] + span * 0.35, value + span * 0.1)
     width = (hi - lo) or 1.0
 
+    # 逐點取樣再合併，而不是自己推區間代數。閾值帶是「由上而下第一個吻合
+    # 者勝出」，所以沒寫 min 的那些帶其實隱含「前一帶的上界」當下界——直接
+    # 拿 lo 當下界會讓每一段都從最左邊開始、彼此重疊，寬度加總遠超過 100%。
+    # 用 _match_bands 本人來判定每個取樣點，語意就不可能跟燈號判定不一致。
+    samples = 240
+    marks = []
+    for i in range(samples):
+        point = lo + (i + 0.5) / samples * width
+        status, label = _match_bands(bands, point)
+        marks.append((status or "unknown", label))
+
     segments = []
-    for band in bands:
-        low = band.get("min", lo)
-        high = band.get("max", hi)
-        low = lo if low is None else max(low, lo)
-        high = hi if high is None else min(high, hi)
-        if high <= low:
+    for i, (status, label) in enumerate(marks):
+        if segments and segments[-1]["status"] == status and segments[-1]["label"] == label:
+            segments[-1]["width_pct"] += 100.0 / samples
+            segments[-1]["to"] = lo + (i + 1) / samples * width
             continue
         segments.append({
-            "status": band.get("status", "ok"),
-            "label": band.get("label") or STATUS_TEXT.get(band.get("status"), ""),
-            "start_pct": (low - lo) / width * 100.0,
-            "width_pct": (high - low) / width * 100.0,
-            "from": low,
-            "to": high,
+            "status": status,
+            "label": label or STATUS_TEXT.get(status, ""),
+            "start_pct": i / samples * 100.0,
+            "width_pct": 100.0 / samples,
+            "from": lo + i / samples * width,
+            "to": lo + (i + 1) / samples * width,
         })
-    segments.sort(key=lambda s: s["start_pct"])
 
     above = [e for e in edges if e > value]
     below = [e for e in edges if e < value]
@@ -235,6 +243,22 @@ def _assess_indicator(indicator, series_map, metrics, notes):
             _fmt(track["prev_edge"], decimals, unit),
             _fmt(abs(track["prev_distance"]), decimals, unit))
 
+    # 在自己的歷史區間裡站在哪個位置。你原始文件手寫的「仍在十年區間第 16
+    # 百分位」就是這個——沒有它，284bps 到底算緊還是鬆只能靠記憶。
+    # 在自己的歷史區間裡站在哪個位置。原始文件手寫的「仍在十年區間第 16
+    # 百分位」就是這個——沒有它，284bps 到底算緊還是鬆只能靠記憶。
+    pct_rank = None
+    span_years = None
+    if len(series) >= 60 and value is not None:
+        below = sum(1 for v in series.values if v < value)
+        pct_rank = below / len(series) * 100.0
+        try:
+            first = datetime.strptime(series.dates[0], "%Y-%m-%d")
+            last = datetime.strptime(series.dates[-1], "%Y-%m-%d")
+            span_years = (last - first).days / 365.25
+        except ValueError:
+            span_years = None
+
     stale_days = None
     if series.latest_date():
         try:
@@ -248,6 +272,10 @@ def _assess_indicator(indicator, series_map, metrics, notes):
         "key": key,
         "track": track,
         "stale_days": stale_days,
+        "pct_rank": pct_rank,
+        "span_years": span_years,
+        "range_text": ("近 %.1f 年區間第 %.0f 百分位" % (span_years, pct_rank))
+        if pct_rank is not None and span_years else "",
         "distance_text": distance_text,
         "severity": max(0, STATUS_ORDER.get(status, -1)) + 1 if status in STATUS_ORDER
         and status not in ("unknown", "info") else 0,

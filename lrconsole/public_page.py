@@ -164,7 +164,7 @@ section{padding-top:46px}
 /* ---------- 閾值軌道 ---------- */
 .track{margin-top:11px}
 .track .bar{display:flex;height:9px;background:var(--paper-2);position:relative}
-.track .seg{height:100%;opacity:.32}
+.track .seg{height:100%;opacity:.55;flex:none}
 .track .seg+.seg{margin-left:1px}
 .track .mk{position:absolute;top:-3px;width:2px;height:15px;background:var(--ink)}
 .track .lab{display:flex;justify-content:space-between;font-family:var(--mono);

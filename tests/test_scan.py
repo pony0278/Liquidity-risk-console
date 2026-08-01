@@ -416,6 +416,50 @@ class PublicPageTests(unittest.TestCase):
         self.assertGreaterEqual(track["marker_pct"], 0)
         self.assertLessEqual(track["marker_pct"], 100)
 
+    def test_track_segments_tile_the_bar_exactly(self):
+        """區段要剛好鋪滿 100%，不重疊也不留縫。
+
+        沒寫 min 的閾值帶隱含「前一帶的上界」當下界；若當成從最左邊開始，
+        每段都會重疊，寬度加總可以到 230%，畫出來的比例整個是錯的。
+        """
+        for indicator in self.snapshot["indicators"]:
+            track = indicator.get("track")
+            if not track:
+                continue
+            total = sum(s["width_pct"] for s in track["segments"])
+            self.assertAlmostEqual(total, 100.0, places=6,
+                                   msg="%s 的軌道總寬 %.2f%%" % (indicator["key"], total))
+            cursor = 0.0
+            for seg in track["segments"]:
+                self.assertAlmostEqual(seg["start_pct"], cursor, places=6,
+                                       msg="%s 的區段有縫或重疊" % indicator["key"])
+                cursor += seg["width_pct"]
+
+    def test_track_band_matches_the_light(self):
+        """標記所在的區段，狀態必須跟燈號一致——否則畫面自相矛盾。"""
+        for indicator in self.snapshot["indicators"]:
+            track = indicator.get("track")
+            if not track or indicator["status"] in ("unknown", "info"):
+                continue
+            at = next((s for s in track["segments"]
+                       if s["start_pct"] <= track["marker_pct"] < s["start_pct"] + s["width_pct"]),
+                      track["segments"][-1])
+            self.assertEqual(at["status"], indicator["status"],
+                             "%s 的標記落在 %s 帶，但燈號是 %s"
+                             % (indicator["key"], at["status"], indicator["status"]))
+
+    def test_console_css_class_names_are_unique(self):
+        """新增樣式不能跟原本的類名撞——`.tb` 原本是頁首標題區塊，
+        後來加的同名規則會把 header 的 grid 佈局一起蓋掉，而且不會有任何
+        測試變紅，只會版面壞掉。"""
+        import re
+        path = os.path.join(BASE_DIR, "templates", "console.css")
+        with open(path, encoding="utf-8") as handle:
+            css = handle.read()
+        selectors = re.findall(r"^([.#][\w-]+)\s*\{", css, re.M)
+        duplicates = {s for s in selectors if selectors.count(s) > 1}
+        self.assertEqual(duplicates, set(), "重複定義的選擇器：%s" % duplicates)
+
     def test_no_unresolved_placeholders(self):
         self.assertNotIn("__TILE_KEYS__", self.html)
         self.assertNotIn("__TILE_WHY__", self.html)

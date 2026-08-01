@@ -254,7 +254,12 @@ def main(argv=None):
     date_tag = scan_time[:10]
     os.makedirs(args.out_dir, exist_ok=True)
 
-    html_text = render_mod.render_html(snapshot, changes)
+    # 公開版的六格用精簡清單；完整版表格 23 列全部都要畫，而它是伺服器端
+    # 渲染，不會反映成使用者的下載量。
+    console_series = public_page.build_series_payload(
+        series_map, keys=[i["key"] for i in indicator_cfg if not i.get("hidden")])
+    series_payload = public_page.build_series_payload(series_map)
+    html_text = render_mod.render_html(snapshot, changes, console_series)
     for name in ("console.html", "console-%s.html" % date_tag):
         path = os.path.join(args.out_dir, name)
         with open(path, "w", encoding="utf-8") as handle:
@@ -263,7 +268,6 @@ def main(argv=None):
 
     # 公開版總覽（index.html）。序列另外存一份給火花線用，頁面會在載入時
     # 重抓，所以即使 HTML 被快取，看到的仍是最新一次掃描。
-    series_payload = public_page.build_series_payload(series_map)
     history_mod.save_json(os.path.join(args.out_dir, "series.json"), series_payload)
     public_html = public_page.render_public_html(
         snapshot, series_payload, changes, repo_url=args.repo_url)

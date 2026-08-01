@@ -150,7 +150,7 @@ section{padding-top:52px}
 
 /* ---------- gauge table ---------- */
 .wrap{overflow-x:auto;border-top:1px solid var(--rule)}
-table{border-collapse:collapse;width:100%;min-width:920px;font-size:13.5px}
+table{border-collapse:collapse;width:100%;min-width:1120px;font-size:13.5px}
 thead th{
   font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--ink-soft);font-weight:600;text-align:left;
@@ -334,3 +334,26 @@ td.dt{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-spac
   .pstep .pl{grid-column:1/-1}
   .pstep .pd{grid-column:1/-1;grid-row:3}
 }
+
+/* ---------- 走勢欄（伺服器端 SVG，不依賴 JS） ---------- */
+td.sp{width:118px;padding-top:9px}
+svg.sk{display:block;width:104px;height:22px;overflow:visible}
+svg.sk .sl{fill:none;stroke:var(--ink-faint);stroke-width:1.2;
+  stroke-linejoin:round;stroke-linecap:round;opacity:.75}
+svg.sk .sr{fill:none;stroke:currentColor;stroke-width:1.6;
+  stroke-linejoin:round;stroke-linecap:round}
+svg.sk .sh{fill:currentColor;stroke:var(--paper);stroke-width:1.2}
+svg.sk .zl{stroke:var(--rule-hard);stroke-width:.8;stroke-dasharray:2 2}
+td.sp .rg{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);
+  margin-top:3px;letter-spacing:.02em;white-space:nowrap}
+.nospark{font-family:var(--mono);font-size:11px;color:var(--dead)}
+
+/* ---------- 閾值軌道（表格內） ---------- */
+.bandbar{display:flex;position:relative;height:6px;width:150px;margin-bottom:5px;
+  background:var(--paper-2)}
+.bandbar i{height:100%;opacity:.55;display:block;flex:none}
+.bandbar i+i{margin-left:1px}
+.bandbar b{position:absolute;top:-2px;width:2px;height:10px;background:var(--ink)}
+.bg-ok{background:var(--ok)} .bg-watch{background:var(--watch)}
+.bg-press{background:var(--press)} .bg-alarm{background:var(--alarm)}
+.bg-unknown{background:var(--dead)}
