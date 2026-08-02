@@ -125,6 +125,12 @@ details.prose summary::before{content:"▸ "}
 details.prose[open] summary::before{content:"▾ "}
 details.prose summary:hover{color:var(--ink)}
 
+/* ---------- 廣告位 ---------- */
+.adbox{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:14px 0 16px;margin:34px 0;text-align:center;min-height:120px}
+.adbox>.anno{display:block;margin-bottom:10px;color:var(--ink-faint)}
+.adbox ins{margin:0 auto}
+
 /* ---------- 嚴重度格 ---------- */
 .sev{display:inline-flex;gap:2px;vertical-align:-1px}
 .sev i{width:6px;height:13px;background:var(--rule);display:block}
@@ -609,7 +615,101 @@ _TILE_WHY = {
 }
 
 
-def render_public_html(snapshot, series_payload, changes, repo_url=""):
+def _adsense_head(site):
+    """AdSense 的載入程式碼。沒設定 client 就回傳空字串——不是隱藏廣告，
+    是根本不把第三方 script 放進頁面，訪客不會被追蹤。"""
+    client = ((site or {}).get("adsense") or {}).get("client", "").strip()
+    if not client:
+        return ""
+    return ('<script async src="https://pagead2.googlesyndication.com/pagead/js/'
+            'adsbygoogle.js?client=%s" crossorigin="anonymous"></script>\n'
+            % _esc(client))
+
+
+def _ad_unit(site, position):
+    """單一廣告位。client 或該位置的 slot 沒填就不輸出。"""
+    adsense = (site or {}).get("adsense") or {}
+    client = adsense.get("client", "").strip()
+    slot = (adsense.get("slots") or {}).get(position, "").strip()
+    if not client or not slot:
+        return ""
+    return (
+        '<div class="adbox"><span class="anno">贊助內容</span>\n'
+        '  <ins class="adsbygoogle" style="display:block" '
+        'data-ad-client="%s" data-ad-slot="%s" '
+        'data-ad-format="auto" data-full-width-responsive="true"></ins>\n'
+        '  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>\n'
+        '</div>' % (_esc(client), _esc(slot)))
+
+
+def render_privacy_html(site, repo_url=""):
+    """隱私權政策。AdSense 審核會檢查這頁，而且投放個人化廣告本來就需要它。"""
+    adsense_on = bool(((site or {}).get("adsense") or {}).get("client", "").strip())
+    email = (site or {}).get("contact_email", "").strip()
+    cookie_section = (
+        "<h2>廣告與 Cookie</h2>"
+        "<p>本站使用 Google AdSense 投放廣告。Google 及其合作夥伴會使用 Cookie，"
+        "依據您先前造訪本站或其他網站的紀錄來投放廣告。</p>"
+        "<p>您可以前往 <a href=\"https://www.google.com/settings/ads\">廣告設定</a> "
+        "停用個人化廣告，或前往 <a href=\"https://www.aboutads.info/choices/\">"
+        "aboutads.info</a> 停用第三方供應商的 Cookie。</p>"
+        "<p>歐洲經濟區、英國與瑞士的訪客，會在首次造訪時看到同意聲明；"
+        "您的選擇會被記住，可隨時透過頁尾的連結修改。</p>"
+    ) if adsense_on else (
+        "<h2>廣告與 Cookie</h2>"
+        "<p>本站目前<strong>沒有</strong>投放廣告，也沒有載入任何廣告或分析用的第三方程式碼。</p>"
+    )
+    contact = ("<p>聯絡方式：<a href=\"mailto:%s\">%s</a></p>" % (_esc(email), _esc(email))
+               ) if email else ""
+
+    return """<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隱私權政策 — 流動性與尾部風險監測</title>
+<style>%s
+.wrap{max-width:720px}
+h2{font-family:var(--mono);font-size:14px;letter-spacing:.02em;margin:32px 0 10px}
+p,li{font-size:14.5px;color:var(--ink-soft);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="masthead"><div>
+  <div class="anno">隱私權政策 / PRIVACY POLICY</div>
+  <h1>流動性與尾部風險監測</h1>
+</div></div></header>
+
+<section>
+<h2>本站蒐集什麼</h2>
+<p>本站是一個靜態網頁，<strong>不要求註冊、不蒐集姓名或電子郵件、沒有登入功能</strong>。
+所有顯示的數據都來自公開資料源，與訪客無關。</p>
+
+<h2>伺服器記錄</h2>
+<p>本站託管於 GitHub Pages。GitHub 基於維運與資安需求，可能記錄訪客的 IP 位址與瀏覽器資訊，
+這部分適用 <a href="https://docs.github.com/site-policy/privacy-policies/github-privacy-statement">GitHub 的隱私權聲明</a>，本站無法存取這些記錄。</p>
+
+%s
+
+<h2>外部連結</h2>
+<p>本站包含指向 FRED、紐約聯準銀行等外部網站的連結。點擊後即適用該網站自己的隱私權政策。</p>
+
+<h2>免責聲明</h2>
+<p>本站為個人監測用的指標與傳導路徑整理，數值取自公開資料源並可能有時間落差或修正，
+<strong>不構成投資建議</strong>。</p>
+
+%s
+<p style="margin-top:28px"><a href="./">← 回到主頁</a>%s</p>
+</section>
+</div>
+</body>
+</html>
+""" % (_CSS, cookie_section, contact,
+       (' · <a href="%s">原始碼</a>' % _esc(repo_url)) if repo_url else "")
+
+
+def render_public_html(snapshot, series_payload, changes, repo_url="", site=None):
     boot_snapshot = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
     boot_series = json.dumps(series_payload, ensure_ascii=False, separators=(",", ":"))
     script = (_JS
@@ -634,7 +734,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url=""):
 <meta name="description" content="美國流動性與尾部風險的五層監測盤，每 3 天自動更新。先講結論，再給數字。">
 <meta property="og:title" content="流動性與尾部風險監測">
 <meta property="og:description" content="五層壓力盤 · 每 3 天自動掃描 · 資料取自 FRED／NY Fed／市場報價">
-<style>%s</style>
+%s<style>%s</style>
 </head>
 <body>
 <div class="wrap">
@@ -671,6 +771,8 @@ def render_public_html(snapshot, series_payload, changes, repo_url=""):
 </div>
 
 <div class="tiers" id="tiers"></div>
+
+%s
 
 <section>
   <div class="shead"><h2>現在該注意什麼</h2>
@@ -742,11 +844,14 @@ def render_public_html(snapshot, series_payload, changes, repo_url=""):
   </div>
 </section>
 
+%s
+
 <footer>
   <div>資料來源：FRED（聖路易聯準銀行）· NY Fed 公開市場操作 · 市場報價。
     每 3 天由 GitHub Actions 自動掃描並重建本頁。</div>
   <div style="margin-top:8px">%s<a href="%s">完整版控制盤（含全部 23 格指標與傳導鏈細節）</a>
-    · <a href="latest.json">原始 JSON</a></div>
+    · <a href="latest.json">原始 JSON</a>
+    · <a href="privacy.html">隱私權政策</a></div>
   <p class="disc">本頁為個人監測用的指標與傳導路徑整理，數值取自公開資料源並可能有時間落差或修正，
     <strong>不構成投資建議</strong>。判定為「重定價」不代表不會升級，
     只代表升級所需的條件目前尚未成立。</p>
@@ -759,5 +864,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url=""):
 <script>%s</script>
 </body>
 </html>
-""" % (_CSS, change_rows, repo_line, console_link,
+""" % (_adsense_head(site), _CSS,
+       _ad_unit(site, "after_hero"),
+       change_rows, _ad_unit(site, "footer"), repo_line, console_link,
        boot_snapshot.replace("</", "<\\/"), boot_series.replace("</", "<\\/"), script)

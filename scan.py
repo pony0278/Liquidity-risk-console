@@ -79,7 +79,14 @@ def load_configs(config_dir):
     with open(os.path.join(config_dir, "rules.json"), encoding="utf-8") as handle:
         rules_cfg = json.load(handle)
     rules_cfg["_tiers"] = indicators_cfg.get("tiers", [])
-    return indicators_cfg["indicators"], rules_cfg
+
+    # site.json 是選用的：沒有這個檔就一切照舊，頁面不會有廣告相關的任何東西。
+    site_cfg = {}
+    site_path = os.path.join(config_dir, "site.json")
+    if os.path.exists(site_path):
+        with open(site_path, encoding="utf-8") as handle:
+            site_cfg = json.load(handle)
+    return indicators_cfg["indicators"], rules_cfg, site_cfg
 
 
 def known_variable_names(indicator_cfg):
@@ -173,7 +180,7 @@ def main(argv=None):
 
     log("== 流動性與尾部風險掃描 %s ==" % scan_time)
 
-    indicator_cfg, rules_cfg = load_configs(args.config_dir)
+    indicator_cfg, rules_cfg, site_cfg = load_configs(args.config_dir)
 
     log("\n[0/5] 設定檔自我檢查")
     problems = self_test(indicator_cfg, rules_cfg, log)
@@ -270,11 +277,35 @@ def main(argv=None):
     # 重抓，所以即使 HTML 被快取，看到的仍是最新一次掃描。
     history_mod.save_json(os.path.join(args.out_dir, "series.json"), series_payload)
     public_html = public_page.render_public_html(
-        snapshot, series_payload, changes, repo_url=args.repo_url)
+        snapshot, series_payload, changes, repo_url=args.repo_url, site=site_cfg)
     path = os.path.join(args.out_dir, "index.html")
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(public_html)
     log("  寫出 %s（公開版）" % path)
+
+    # 隱私權政策：AdSense 審核會看，而且投放個人化廣告本來就需要。
+    privacy_path = os.path.join(args.out_dir, "privacy.html")
+    with open(privacy_path, "w", encoding="utf-8") as handle:
+        handle.write(public_page.render_privacy_html(site_cfg, repo_url=args.repo_url))
+    log("  寫出 %s" % privacy_path)
+
+    # ads.txt 必須在網域根目錄，所以只有在用自訂網域時才有意義；
+    # 放在 github.io 的子路徑下 Google 根本不會去讀。
+    ad_client = (site_cfg.get("adsense") or {}).get("client", "").strip()
+    if ad_client:
+        publisher = ad_client.replace("ca-pub-", "")
+        with open(os.path.join(args.out_dir, "ads.txt"), "w", encoding="utf-8") as handle:
+            handle.write("google.com, pub-%s, DIRECT, f08c47fec0942fa0\n" % publisher)
+        log("  寫出 ads.txt")
+        if not site_cfg.get("custom_domain", "").strip():
+            log("  ⚠ 已設定 AdSense 但沒有自訂網域——github.io 的母網域無法驗證，"
+                "審核不會過，ads.txt 也不會被讀取。")
+
+    domain = site_cfg.get("custom_domain", "").strip()
+    if domain:
+        with open(os.path.join(args.out_dir, "CNAME"), "w", encoding="utf-8") as handle:
+            handle.write(domain + "\n")
+        log("  寫出 CNAME（%s）" % domain)
 
     summary = diff_mod.render_markdown_summary(snapshot, changes)
     summary_path = os.path.join(args.out_dir, "summary-%s.md" % date_tag)

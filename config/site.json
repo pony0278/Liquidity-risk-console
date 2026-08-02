@@ -1,0 +1,18 @@
+{
+  "_comment": "網站層級的設定。全部留空＝維持現狀，頁面不會有任何改變。",
+
+  "_domain_note": "自訂網域。AdSense 用『母網域』的狀態決定子網域能否放廣告，而 github.io 的母網域是 GitHub 的，你無法驗證所有權——所以在 github.io 上永遠審核不過。填了這格會產生 reports/CNAME，Pages 就會用這個網域。",
+  "custom_domain": "",
+
+  "_adsense_note": "審核通過後把 client 填成 ca-pub-XXXXXXXXXXXXXXXX。留空時整段廣告程式碼不會出現在頁面上（不是隱藏，是根本不產生）。slots 是 AdSense 後台建立廣告單元後給的數字 ID；沒填的位置不顯示。",
+  "adsense": {
+    "client": "",
+    "slots": {
+      "after_hero": "",
+      "footer": ""
+    }
+  },
+
+  "_contact_note": "隱私權政策頁需要一個聯絡方式，AdSense 審核會看。",
+  "contact_email": ""
+}

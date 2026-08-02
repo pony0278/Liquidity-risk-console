@@ -550,6 +550,49 @@ class ConsoleDensityTests(unittest.TestCase):
         self.assertRegex(self.html, r'<td class="k" title="[^"]+">')
 
 
+class AdSenseTests(unittest.TestCase):
+    """廣告是選用的：沒設定就完全不存在，不是用 CSS 藏起來。"""
+
+    def _render(self, site):
+        with open(os.path.join(BASE_DIR, "reports", "latest.json"), encoding="utf-8") as handle:
+            snapshot = json.load(handle)
+        from lrconsole import public_page
+        return public_page.render_public_html(snapshot, {}, [], site=site)
+
+    def test_no_third_party_script_when_unconfigured(self):
+        """沒填 client 時連 script 標籤都不該產生——訪客不會被第三方追蹤。"""
+        for site in (None, {}, {"adsense": {"client": "", "slots": {}}}):
+            html_text = self._render(site)
+            self.assertNotIn("adsbygoogle", html_text)
+            self.assertNotIn("googlesyndication", html_text)
+
+    def test_units_render_only_for_filled_slots(self):
+        html_text = self._render({"adsense": {
+            "client": "ca-pub-0000000000000000",
+            "slots": {"after_hero": "111", "footer": ""},
+        }})
+        self.assertIn("googlesyndication", html_text)
+        self.assertEqual(html_text.count('class="adbox"'), 1,
+                         "只有填了 slot 的位置該出現廣告")
+
+    def test_privacy_page_matches_ad_state(self):
+        from lrconsole import public_page
+        off = public_page.render_privacy_html({})
+        self.assertIn("沒有", off)
+        self.assertNotIn("AdSense", off)
+        on = public_page.render_privacy_html({"adsense": {"client": "ca-pub-1"}})
+        self.assertIn("AdSense", on)
+        self.assertIn("aboutads.info", on)
+
+    def test_privacy_page_always_written(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            _, _, out_dir = run_scan(tmp, CALM)
+            self.assertIn("privacy.html", os.listdir(out_dir))
+        finally:
+            shutil.rmtree(tmp)
+
+
 class RebuildTests(unittest.TestCase):
     def test_rebuild_preserves_scan_time_and_changes(self):
         """重畫頁面不是一次新的掃描，時間戳與變更清單都要沿用。"""
