@@ -464,6 +464,15 @@ class PublicPageTests(unittest.TestCase):
         self.assertNotIn("__TILE_KEYS__", self.html)
         self.assertNotIn("__TILE_WHY__", self.html)
 
+    def test_hero_charts_replace_prose(self):
+        """首屏是兩張圖：升級階梯量表 + 壓力分布；文字判讀收進摺疊。"""
+        self.assertIn('id="ladder-meter"', self.html)
+        self.assertIn('id="pressure-map"', self.html)
+        self.assertIn('<details class="prose">', self.html)
+        # 壓力分布靠 pct_rank 畫點，指標資料裡必須有這個欄位
+        by_key = {i["key"]: i for i in self.snapshot["indicators"]}
+        self.assertIsNotNone(by_key["y30"].get("pct_rank"))
+
 
 class PrecedentTests(unittest.TestCase):
     """傳導鏈的歷史先例——重點是「日圓在第幾幕」要真的被畫出來。"""

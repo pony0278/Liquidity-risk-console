@@ -93,6 +93,38 @@ h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
 .verdict-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:38px}
 @media(max-width:800px){.verdict-grid{grid-template-columns:1fr;gap:24px}}
 
+/* ---------- 升級階梯量表：現在第幾階，一眼看懂 ---------- */
+.lmeter{display:flex;gap:4px;margin-top:20px;max-width:420px}
+.lstep{flex:1;text-align:center;min-width:0}
+.lstep i{display:block;height:11px;background:var(--paper-2);border:1px solid var(--rule)}
+.lstep em{font-family:var(--mono);font-style:normal;font-size:10px;letter-spacing:.06em;
+  color:var(--ink-faint);margin-top:5px;display:block;white-space:nowrap}
+.lstep.past i{background:var(--rule)}
+.lstep.here i{background:currentColor;border-color:currentColor}
+.lstep.here em{color:currentColor;font-weight:700}
+
+/* ---------- 壓力分布：點的位置＝指標在自己近兩年區間的百分位 ---------- */
+.paxis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;
+  color:var(--ink-faint);letter-spacing:.08em;margin:10px 0 4px;padding-left:122px}
+.prow{display:grid;grid-template-columns:114px minmax(0,1fr) 30px;gap:8px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--rule)}
+.prow .pl{font-size:12.5px;font-weight:600;line-height:1.3}
+.prow .pl i{display:block;font-style:normal;font-family:var(--mono);font-size:9.5px;
+  color:var(--ink-faint);letter-spacing:.05em}
+.prail{position:relative;height:6px;background:var(--paper-2)}
+.pmid{position:absolute;left:50%;top:-2px;width:1px;height:10px;background:var(--rule-hard)}
+.prail b{position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;
+  border-radius:50%;background:currentColor;border:2px solid var(--paper)}
+.ppct{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:right}
+details.prose{margin-top:16px}
+details.prose summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;
+  list-style:none}
+details.prose summary::-webkit-details-marker{display:none}
+details.prose summary::before{content:"▸ "}
+details.prose[open] summary::before{content:"▾ "}
+details.prose summary:hover{color:var(--ink)}
+
 /* ---------- 嚴重度格 ---------- */
 .sev{display:inline-flex;gap:2px;vertical-align:-1px}
 .sev i{width:6px;height:13px;background:var(--rule);display:block}
@@ -278,6 +310,51 @@ _JS = r"""
     el("hero-paras").innerHTML = paras.map(function (p) {
       return "<p>" + esc(p) + "</p>";
     }).join("");
+  }
+
+  // 升級階梯量表：五格，走到哪格亮到哪格。入門者不需要知道每階的定義，
+  // 只需要知道「現在 1，危機是 4」。
+  var LADDER_SHORT = { 1: "重定價", 2: "信用", 3: "去槓桿", 4: "資金", 5: "主權" };
+  function renderLadderMeter(snap) {
+    var cur = snap.level || 1;
+    el("ladder-meter").innerHTML =
+      '<div class="anno" style="margin-bottom:7px">危機升級階梯 · 第 ' + cur + " / 5 階</div>"
+      + '<div class="lmeter">' + (snap.ladder || []).map(function (r) {
+        var state = r.level === cur ? " here " + cls(snap.overall_status)
+          : (r.level < cur ? " past" : "");
+        return '<div class="lstep' + state + '" title="' + esc(r.title)
+          + (r.readout ? " · " + esc(r.readout) : "") + '">'
+          + "<i></i><em>" + esc(LADDER_SHORT[r.level] || r.title) + "</em></div>";
+      }).join("") + "</div>";
+  }
+
+  // 壓力分布：取代首屏的四段文字。點在右邊＝這指標在自己近兩年區間的
+  // 高檔。「利率在頂、信用在底」這個結論直接用位置講，不用句子。
+  var PMAP = [
+    ["y30", "長天期公債利率", "30Y"],
+    ["hy_oas", "企業借錢成本", "HY OAS"],
+    ["ccc_oas", "最弱企業借錢成本", "CCC OAS"],
+    ["vix", "股市恐慌指數", "VIX"],
+    ["move", "債市恐慌指數", "MOVE"],
+    ["usdjpy", "日圓匯率", "USD/JPY"],
+    ["sofr_iorb", "銀行資金鬆緊", "SOFR−IORB"],
+  ];
+  function renderPressureMap(snap) {
+    var byKey = {};
+    (snap.indicators || []).forEach(function (i) { byKey[i.key] = i; });
+    var rows = PMAP.map(function (p) {
+      var i = byKey[p[0]];
+      if (!i || i.pct_rank == null) return "";
+      var pct = Math.max(0, Math.min(100, i.pct_rank));
+      return '<div class="prow" title="' + esc(i.label) + " " + esc(i.display)
+        + (i.range_text ? " · " + esc(i.range_text) : "") + '">'
+        + '<span class="pl">' + esc(p[1]) + "<i>" + esc(p[2]) + "</i></span>"
+        + '<span class="prail"><i class="pmid"></i><b class="' + cls(i.status)
+        + '" style="left:' + pct.toFixed(0) + '%"></b></span>'
+        + '<span class="ppct">' + pct.toFixed(0) + "</span></div>";
+    }).join("");
+    el("pressure-map").innerHTML =
+      '<div class="paxis"><span>← 兩年最低</span><span>兩年最高 →</span></div>' + rows;
   }
 
   function renderTiers(snap) {
@@ -480,6 +557,8 @@ _JS = r"""
 
   function render(snap, series) {
     renderHeader(snap);
+    renderLadderMeter(snap);
+    renderPressureMap(snap);
     renderTiers(snap);
     renderAlerts(snap);
     renderTiles(snap, series || {});
@@ -581,8 +660,13 @@ def render_public_html(snapshot, series_payload, changes, repo_url=""):
       <div class="hero" id="hero-sub">載入中…</div>
       <span class="hero-n" id="hero-n">—</span>
       <div class="hero-title" id="hero-title"></div>
+      <div id="ladder-meter"></div>
     </div>
-    <div id="hero-paras"></div>
+    <div>
+      <div class="anno">壓力集中在哪 · 每個點＝該指標在自己近兩年區間的位置</div>
+      <div id="pressure-map"></div>
+      <details class="prose"><summary>文字判讀</summary><div id="hero-paras"></div></details>
+    </div>
   </div>
 </div>
 
