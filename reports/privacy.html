@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隱私權政策 — 流動性與尾部風險監測</title>
+<style>
+:root{
+  --paper:#E4E8EF; --paper-2:#DBE0E9; --card:#EDF0F5;
+  --ink:#1B2A41; --ink-soft:#5A6B85; --ink-faint:#8695AB;
+  --rule:#B4BFD0; --rule-hard:#8C9AB0;
+  --ok:#2E6E4F; --watch:#9E6F1E; --press:#B04E1E; --alarm:#96241F; --dead:#9AA6B8;
+  --mono: ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans TC",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.65;
+  background-image:
+    repeating-linear-gradient(0deg,transparent 0 39px,rgba(27,42,65,.04) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,rgba(27,42,65,.04) 39px 40px);
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 90px}
+.anno{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+a{color:var(--ink)}
+
+/* ---------- 頁首 ---------- */
+header{border-bottom:1.5px solid var(--ink);padding:30px 0 16px;margin-bottom:0}
+.masthead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
+  letter-spacing:-.02em;margin:6px 0 0;line-height:1.15}
+.stamp{text-align:right;line-height:1.85;white-space:nowrap}
+.stamp .live{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:700}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+@media (prefers-reduced-motion:no-preference){.dot{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}}
+
+/* ---------- 結論 ---------- */
+.verdict{padding:34px 0 30px;border-bottom:1px solid var(--rule)}
+.hero{font-size:clamp(15px,1.6vw,17px);color:var(--ink-soft);margin:0 0 6px}
+.hero-n{font-family:var(--sans);font-size:clamp(46px,8vw,74px);font-weight:700;
+  line-height:1;letter-spacing:-.03em;display:block;margin:2px 0 8px}
+.hero-title{font-size:clamp(19px,2.6vw,26px);font-weight:700;line-height:1.35;
+  margin:0 0 14px;max-width:24ch}
+.verdict p{margin:0 0 10px;max-width:66ch;color:var(--ink-soft);font-size:15px}
+.verdict-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:38px}
+@media(max-width:800px){.verdict-grid{grid-template-columns:1fr;gap:24px}}
+
+/* ---------- 升級階梯量表：現在第幾階，一眼看懂 ---------- */
+.lmeter{display:flex;gap:4px;margin-top:20px;max-width:420px}
+.lstep{flex:1;text-align:center;min-width:0}
+.lstep i{display:block;height:11px;background:var(--paper-2);border:1px solid var(--rule)}
+.lstep em{font-family:var(--mono);font-style:normal;font-size:10px;letter-spacing:.06em;
+  color:var(--ink-faint);margin-top:5px;display:block;white-space:nowrap}
+.lstep.past i{background:var(--rule)}
+.lstep.here i{background:currentColor;border-color:currentColor}
+.lstep.here em{color:currentColor;font-weight:700}
+
+/* ---------- 壓力分布：點的位置＝指標在自己近兩年區間的百分位 ---------- */
+.paxis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;
+  color:var(--ink-faint);letter-spacing:.08em;margin:10px 0 4px;padding-left:122px}
+.prow{display:grid;grid-template-columns:114px minmax(0,1fr) 30px;gap:8px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--rule)}
+.prow .pl{font-size:12.5px;font-weight:600;line-height:1.3}
+.prow .pl i{display:block;font-style:normal;font-family:var(--mono);font-size:9.5px;
+  color:var(--ink-faint);letter-spacing:.05em}
+.prail{position:relative;height:6px;background:var(--paper-2)}
+.pmid{position:absolute;left:50%;top:-2px;width:1px;height:10px;background:var(--rule-hard)}
+.prail b{position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;
+  border-radius:50%;background:currentColor;border:2px solid var(--paper)}
+.ppct{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:right}
+details.prose{margin-top:16px}
+details.prose summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;
+  list-style:none}
+details.prose summary::-webkit-details-marker{display:none}
+details.prose summary::before{content:"▸ "}
+details.prose[open] summary::before{content:"▾ "}
+details.prose summary:hover{color:var(--ink)}
+
+/* ---------- 廣告位 ---------- */
+.adbox{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:14px 0 16px;margin:34px 0;text-align:center;min-height:120px}
+.adbox>.anno{display:block;margin-bottom:10px;color:var(--ink-faint)}
+.adbox ins{margin:0 auto}
+
+/* ---------- 嚴重度格 ---------- */
+.sev{display:inline-flex;gap:2px;vertical-align:-1px}
+.sev i{width:6px;height:13px;background:var(--rule);display:block}
+.sev.s1 i:nth-child(-n+1),.sev.s2 i:nth-child(-n+2),
+.sev.s3 i:nth-child(-n+3),.sev.s4 i:nth-child(-n+4){background:currentColor}
+.t-ok{color:var(--ok)} .t-watch{color:var(--watch)} .t-press{color:var(--press)}
+.t-alarm{color:var(--alarm)} .t-unknown{color:var(--dead)} .t-info{color:var(--ink-faint)}
+
+/* ---------- 五層 ---------- */
+.tiers{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--rule)}
+.tier{border-left:1px solid var(--rule);padding:16px 14px 18px}
+.tier:first-child{border-left:0}
+.tier .st{display:flex;align-items:center;gap:8px;margin:7px 0 3px}
+.tier .st b{font-size:16px;font-weight:700}
+.tier .rd{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+.tier .plain{font-size:12.5px;color:var(--ink-soft);margin-top:9px;line-height:1.5}
+@media(max-width:860px){.tiers{grid-template-columns:1fr 1fr}
+.tier{border-left:0;border-top:1px solid var(--rule)}}
+
+/* ---------- 區塊 ---------- */
+section{padding-top:46px}
+.shead{display:flex;align-items:baseline;gap:14px;border-bottom:1.5px solid var(--ink);
+  padding-bottom:8px;flex-wrap:wrap}
+.shead h2{font-family:var(--mono);font-size:15px;font-weight:700;margin:0;letter-spacing:.02em}
+.shead .anno{margin-left:auto}
+.lede{color:var(--ink-soft);font-size:14px;max-width:74ch;margin:14px 0 22px}
+
+/* ---------- 警報卡 ---------- */
+.alerts{display:grid;gap:0;border-top:1px solid var(--rule)}
+.alert{padding:16px 0 18px;border-bottom:1px solid var(--rule);
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start}
+.alert.fired{background:rgba(150,36,31,.07);box-shadow:inset 3px 0 0 var(--alarm);
+  padding-left:14px}
+.alert .badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;font-weight:700;
+  text-transform:uppercase;border:1px solid currentColor;padding:3px 7px 2px;white-space:nowrap}
+.alert code{font-family:var(--mono);font-size:14px;font-weight:700;display:block;margin-bottom:5px}
+.alert p{margin:0;font-size:13.5px;color:var(--ink-soft);max-width:70ch}
+
+/* ---------- 指標卡 ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(302px,1fr));
+  gap:0;border-top:1px solid var(--rule)}
+.tile{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:18px 20px 20px}
+.tile:nth-child(3n){border-right:0}
+@media(max-width:1000px){.tile:nth-child(3n){border-right:1px solid var(--rule)}
+.tile:nth-child(2n){border-right:0}}
+@media(max-width:660px){.tile{border-right:0!important}}
+.tile .cap{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.tile .name{font-size:14.5px;font-weight:700}
+.tile .val{font-family:var(--sans);font-size:31px;font-weight:700;letter-spacing:-.02em;
+  line-height:1.15;margin:8px 0 0}
+.tile .delta{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-left:9px;
+  font-weight:600;letter-spacing:-.01em}
+.tile .why{font-size:12.5px;color:var(--ink-soft);margin:10px 0 0;line-height:1.5}
+.tile .dist{font-family:var(--mono);font-size:11.5px;margin-top:9px;font-weight:600}
+.spark{margin-top:12px;position:relative}
+.spark svg{display:block;width:100%;height:44px;overflow:visible}
+.spark .axis{stroke:var(--rule);stroke-width:1}
+.spark .line{fill:none;stroke:var(--ink-faint);stroke-width:2;
+  stroke-linejoin:round;stroke-linecap:round}
+.spark .recent{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.spark .head{stroke:var(--paper);stroke-width:2}
+.spark .hit{fill:transparent;cursor:crosshair}
+.spark .cross{stroke:var(--rule-hard);stroke-width:1;stroke-dasharray:2 2;visibility:hidden}
+.spark .cursor{visibility:hidden;stroke:var(--paper);stroke-width:1.5}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;
+  font-family:var(--mono);font-size:11px;padding:4px 7px;white-space:nowrap;
+  transform:translate(-50%,-100%);opacity:0;transition:opacity .1s;z-index:5}
+
+/* ---------- 閾值軌道 ---------- */
+.track{margin-top:11px}
+.track .bar{display:flex;height:9px;background:var(--paper-2);position:relative}
+.track .seg{height:100%;opacity:.55;flex:none}
+.track .seg+.seg{margin-left:1px}
+.track .mk{position:absolute;top:-3px;width:2px;height:15px;background:var(--ink)}
+.track .lab{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:9.5px;color:var(--ink-faint);margin-top:4px;letter-spacing:.06em}
+.bg-ok{background:var(--ok)} .bg-watch{background:var(--watch)}
+.bg-press{background:var(--press)} .bg-alarm{background:var(--alarm)}
+
+/* ---------- 階梯 ---------- */
+.ladder{border-top:1px solid var(--rule)}
+.rung{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:16px;align-items:baseline;
+  padding:14px 0;border-bottom:1px solid var(--rule)}
+.rung .n{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--rule-hard);line-height:1}
+.rung h3{margin:0;font-size:15.5px;font-weight:700}
+.rung .sig{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+.rung .rd{font-family:var(--mono);font-size:11.5px;font-weight:600;text-align:right;white-space:nowrap}
+.rung.here{background:rgba(176,78,30,.10);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
+.rung.here .n{color:var(--press)}
+
+/* ---------- 傳導鏈 ---------- */
+.chains{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;
+  border-top:1px solid var(--rule)}
+.chain{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:17px 20px 19px}
+.chain:nth-child(2n){border-right:0}
+@media(max-width:760px){.chains{grid-template-columns:1fr}.chain{border-right:0}}
+.chain .hd{display:flex;align-items:baseline;gap:10px}
+.chain h3{margin:0;font-size:15px;font-weight:700;min-width:0}
+.chain .cnt{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-left:auto;
+  white-space:nowrap}
+.pips{display:flex;gap:3px;margin:11px 0 9px}
+.pips span{flex:1;height:7px;background:var(--rule)}
+.pips span.on{background:var(--press)}
+.chain .nx{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+.chain .nx b{color:var(--ink);font-weight:700}
+
+/* ---------- 歷史先例 ---------- */
+.prec{margin-top:13px;border-top:1px solid var(--rule);padding-top:11px}
+.prec summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-soft);font-weight:600;list-style:none}
+.prec summary::-webkit-details-marker{display:none}
+.prec summary::before{content:"▸ ";color:var(--ink-faint)}
+.prec[open] summary::before{content:"▾ "}
+.prec summary:hover{color:var(--ink)}
+.pcase{margin-top:14px;border-left:2px solid var(--rule-hard);padding-left:13px}
+.pcase h4{margin:0;font-size:13.5px;font-weight:700}
+.pact{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--press);margin:5px 0 2px}
+.pmeta{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-bottom:9px}
+.psteps{border-top:1px solid var(--rule)}
+.pstep{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--rule);font-size:12px;line-height:1.45}
+.pstep .pw{font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap}
+.pstep.k-yen{background:rgba(176,78,30,.11);box-shadow:inset 2px 0 0 var(--press);
+  padding-left:7px;margin-left:-7px}
+.pstep.k-yen .pl{font-weight:700}
+.pstep.k-yen .pw{color:var(--press)}
+.pstep.k-low .pl{color:var(--alarm)}
+.pstep.k-recover .pl{color:var(--ok)}
+.plesson{font-size:12px;color:var(--ink-soft);margin:10px 0 0;line-height:1.55}
+
+/* ---------- 說明 ---------- */
+.explain{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:28px;
+  border-top:1px solid var(--rule);padding-top:22px}
+.explain h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  margin:0 0 8px}
+.explain p{margin:0 0 10px;font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+footer{margin-top:52px;border-top:1.5px solid var(--ink);padding-top:18px;
+  font-size:12.5px;color:var(--ink-soft)}
+footer a{color:var(--ink-soft)}
+.disc{margin-top:18px;padding-top:13px;border-top:1px solid var(--rule);font-size:11.5px}
+.err{background:rgba(150,36,31,.09);border-left:3px solid var(--alarm);padding:12px 14px;
+  margin:16px 0;font-size:13.5px;display:none}
+
+.wrap{max-width:720px}
+h2{font-family:var(--mono);font-size:14px;letter-spacing:.02em;margin:32px 0 10px}
+p,li{font-size:14.5px;color:var(--ink-soft);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="masthead"><div>
+  <div class="anno">隱私權政策 / PRIVACY POLICY</div>
+  <h1>流動性與尾部風險監測</h1>
+</div></div></header>
+
+<section>
+<h2>本站蒐集什麼</h2>
+<p>本站是一個靜態網頁，<strong>不要求註冊、不蒐集姓名或電子郵件、沒有登入功能</strong>。
+所有顯示的數據都來自公開資料源，與訪客無關。</p>
+
+<h2>伺服器記錄</h2>
+<p>本站託管於 GitHub Pages。GitHub 基於維運與資安需求，可能記錄訪客的 IP 位址與瀏覽器資訊，
+這部分適用 <a href="https://docs.github.com/site-policy/privacy-policies/github-privacy-statement">GitHub 的隱私權聲明</a>，本站無法存取這些記錄。</p>
+
+<h2>廣告與 Cookie</h2><p>本站目前<strong>沒有</strong>投放廣告，也沒有載入任何廣告或分析用的第三方程式碼。</p>
+
+<h2>外部連結</h2>
+<p>本站包含指向 FRED、紐約聯準銀行等外部網站的連結。點擊後即適用該網站自己的隱私權政策。</p>
+
+<h2>免責聲明</h2>
+<p>本站為個人監測用的指標與傳導路徑整理，數值取自公開資料源並可能有時間落差或修正，
+<strong>不構成投資建議</strong>。</p>
+
+
+<p style="margin-top:28px"><a href="./">← 回到主頁</a> · <a href="https://github.com/pony0278/Liquidity-risk-console">原始碼</a></p>
+</section>
+</div>
+</body>
+</html>
