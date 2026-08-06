@@ -81,8 +81,10 @@ jobs:
             done
           fi
 
+      # v5 只是「預備支援」Node 24，預設仍跑 Node 20；v6 才真的切過去。
+      # 這步其實跟 git 提交與 Pages 發佈重複，留著只當作提交失敗時的備份。
       - name: 上傳報表
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: liquidity-console-${{ github.run_number }}
           path: |
