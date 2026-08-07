@@ -483,7 +483,9 @@ _JS = r"""
       var delta = i.change_display ? '<span class="delta">' + esc(i.change_display) + " 單日</span>" : "";
       var dist = i.distance_text
         ? '<div class="dist ' + cls(i.status) + '">' + esc(i.distance_text) + "</div>" : "";
-      var stale = (i.stale_days != null && i.stale_days > 7)
+      // 門檻在 Python 那邊按 freq 算好（日／週／月各不同），這裡只讀結果——
+      // 月頻的指標用日頻的尺去量，會每天都喊過期。
+      var stale = i.stale
         ? ' <span class="t-press" style="font-weight:700">· 已 ' + i.stale_days + ' 天未更新</span>'
         : "";
       return '<div class="tile">'

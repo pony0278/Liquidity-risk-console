@@ -213,7 +213,17 @@ def _gauges(snapshot):
         for indicator in by_tier[tier]:
             change = ('<span class="chg">%s</span>' % _esc(indicator["change_display"])) \
                 if indicator["change_display"] else ""
-            stale = ' <span class="stale">STALE</span>' if not indicator["fetch_ok"] else ""
+            # 抓不到，跟抓到了但資料本身太舊，是兩件不同的事；讀者要的提示
+            # 是同一個：這格的數字不是最新的。過期門檻按各指標宣告的頻率算
+            # （evaluate.stale_limit_for），月頻的用日頻的尺去量會天天喊。
+            if not indicator["fetch_ok"]:
+                stale = ' <span class="stale">STALE</span>'
+            elif indicator.get("stale"):
+                stale = ' <span class="stale" title="%s，超過 %d 天未更新">+%dD</span>' % (
+                    _esc(indicator["freq"] or "—"), indicator.get("stale_limit", 0),
+                    indicator["stale_days"])
+            else:
+                stale = ""
             source_text = " · ".join(t for t in (indicator["freq"],
                                                   indicator["source_label"]) if t)
             rows.append(

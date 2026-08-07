@@ -721,6 +721,74 @@ class TripwireDeltaTests(unittest.TestCase):
             shutil.rmtree(tmp)
 
 
+class StaleTests(unittest.TestCase):
+    """過期門檻要跟著各指標宣告的頻率走。用同一把日頻的尺量所有東西，
+    月頻的非農會每天被標成「已 61 天未更新」——天天亮的警告等於沒有警告。"""
+
+    def test_limits_scale_with_frequency(self):
+        from lrconsole.evaluate import stale_limit_for
+        self.assertEqual(stale_limit_for("每日"), 7)
+        self.assertEqual(stale_limit_for("每月"), 75)
+        # 「每週三」「每週四」是帶星期的寫法，必須比前綴而不是相等。
+        for freq in ("每週", "每週三", "每週四"):
+            self.assertEqual(stale_limit_for(freq), 14, freq)
+
+    def test_unknown_or_missing_freq_falls_back(self):
+        from lrconsole.evaluate import DEFAULT_STALE_LIMIT_DAYS, stale_limit_for
+        for freq in ("", None, "不定期"):
+            self.assertEqual(stale_limit_for(freq), DEFAULT_STALE_LIMIT_DAYS)
+
+    def test_monthly_series_two_months_behind_is_not_stale(self):
+        """FRED 的月頻標在該月 1 號：6 月的數字要等 7 月初才發、7 月的等 8 月
+        初，所以 8/6 當天「6 月」已經 66 天大卻完全正常。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, _ = run_scan(tmp, CALM)
+            payrolls = next(i for i in snapshot["indicators"] if i["key"] == "payrolls")
+            self.assertEqual(payrolls["freq"], "每月")
+            self.assertFalse(payrolls["stale"],
+                             "月頻落後 %s 天不該算過期" % payrolls["stale_days"])
+            self.assertGreater(payrolls["stale_limit"], 45)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_a_genuinely_frozen_daily_series_is_still_flagged(self):
+        """放寬門檻不能連真的壞掉都放過。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            scenario = dict(CALM)
+            frozen = (datetime.now(timezone.utc).date() - timedelta(days=40)).isoformat()
+            data_dir = os.path.join(tmp, "data")
+            write_history(os.path.join(data_dir, "history.csv"), scenario)
+            path = os.path.join(data_dir, "history.csv")
+            with open(path, encoding="utf-8") as handle:
+                rows = handle.read().splitlines()
+            kept = [rows[0]] + [r for r in rows[1:] if ",vix," not in r]
+            kept.append("%s,vix,15.0" % frozen)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(kept) + "\n")
+
+            scan.main([
+                "--config-dir", os.path.join(BASE_DIR, "config"),
+                "--data-dir", data_dir, "--out-dir", os.path.join(tmp, "reports"),
+                "--no-fetch", "--notify", "never", "--quiet",
+            ])
+            with open(os.path.join(tmp, "reports", "latest.json"), encoding="utf-8") as handle:
+                snapshot = json.load(handle)
+            vix = next(i for i in snapshot["indicators"] if i["key"] == "vix")
+            self.assertTrue(vix["stale"], "日頻停在 40 天前應該要被標出來")
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_public_page_reads_the_flag_not_a_hardcoded_number(self):
+        """門檻只能有一份。JS 裡再寫一次 7 天，改 Python 那邊就不會生效。"""
+        with open(os.path.join(BASE_DIR, "lrconsole", "public_page.py"),
+                  encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("var stale = i.stale", source)
+        self.assertNotIn("i.stale_days >", source)
+
+
 class PruneTests(unittest.TestCase):
     def test_keeps_newest_n_dates_and_spares_undated_files(self):
         tmp = tempfile.mkdtemp()

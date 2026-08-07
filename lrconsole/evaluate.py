@@ -9,11 +9,33 @@ from datetime import datetime, timezone
 from .expr import evaluate, evaluate_value, referenced_names
 from .series import Series, build_metrics
 
-__all__ = ["build_snapshot", "STATUS_ORDER", "status_worse"]
+__all__ = ["build_snapshot", "stale_limit_for", "STATUS_ORDER", "status_worse"]
 
 STATUS_ORDER = {"unknown": -1, "info": -1, "ok": 0, "watch": 1, "press": 2, "alarm": 3}
 STATUS_TEXT = {"ok": "正常", "watch": "警示", "press": "明確壓力", "alarm": "警報",
                "unknown": "無資料", "info": "僅記錄"}
+
+# 「多久沒更新算過期」必須跟著各指標自己宣告的 freq 走。一律用 7 天的話，
+# 月頻的非農在 8/1 當天最新的本來就是 6 月的數字，會每天被標成「已 61 天
+# 未更新」——一個天天亮的警告等於沒有警告，真正該注意的那次就沒人看了。
+#
+# 門檻抓得比發佈週期寬鬆，因為量的是「觀測值的日期」而不是「上次更新的
+# 時間」，兩者差一整個發佈延遲：
+#   每日 7  ── 連假加上資料修正，4～5 天是正常的
+#   每週 14 ── H.4.1 的資料日是週三、週四才發，最舊會到 8～9 天
+#   每月 75 ── FRED 的月頻series 標在該月 1 號，6 月的數字要等 7 月初才發，
+#              而 7 月的要等 8 月初；8/6 當天「6 月」已經 66 天大卻完全正常
+_STALE_LIMIT_DAYS = (("每日", 7), ("每週", 14), ("每月", 75))
+DEFAULT_STALE_LIMIT_DAYS = 14
+
+
+def stale_limit_for(freq):
+    """freq 寫成「每週三」「每週四」這種帶星期的形式，所以比前綴而不是相等。"""
+    text = (freq or "").strip()
+    for prefix, limit in _STALE_LIMIT_DAYS:
+        if text.startswith(prefix):
+            return limit
+    return DEFAULT_STALE_LIMIT_DAYS
 
 
 def status_worse(a, b):
@@ -266,12 +288,16 @@ def _assess_indicator(indicator, series_map, metrics, notes):
                           - datetime.strptime(series.latest_date(), "%Y-%m-%d").date()).days
         except ValueError:
             stale_days = None
+    stale_limit = stale_limit_for(indicator.get("freq"))
+    is_stale = stale_days is not None and stale_days > stale_limit
 
     note = notes.get(key, {})
     return {
         "key": key,
         "track": track,
         "stale_days": stale_days,
+        "stale_limit": stale_limit,
+        "stale": is_stale,
         "pct_rank": pct_rank,
         "span_years": span_years,
         "range_text": ("近 %.1f 年區間第 %.0f 百分位" % (span_years, pct_rank))
