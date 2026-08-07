@@ -1312,8 +1312,8 @@
         "prev_distance": 0.3376
       },
       "stale_days": 14,
-      "stale_limit": 7,
-      "stale": true,
+      "stale_limit": 40,
+      "stale": false,
       "pct_rank": 99.44547134935306,
       "span_years": 2.1683778234086244,
       "range_text": "近 2.2 年區間第 99 百分位",

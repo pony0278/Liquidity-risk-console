@@ -117,6 +117,9 @@ def self_test(indicator_cfg, rules_cfg, log):
                                 % (indicator["key"], ", ".join(sorted(missing))))
         if indicator.get("derived_diff") and indicator["derived_diff"] not in keys:
             problems.append("%s 的 derived_diff 指向不存在的指標" % indicator["key"])
+        limit = indicator.get("stale_limit_days")
+        if limit is not None and (not isinstance(limit, (int, float)) or limit <= 0):
+            problems.append("%s 的 stale_limit_days 必須是正數" % indicator["key"])
 
     names = known_variable_names(indicator_cfg)
 

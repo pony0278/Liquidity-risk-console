@@ -780,6 +780,26 @@ class StaleTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    def test_per_indicator_override_wins_over_freq(self):
+        """觀測頻率與發佈節奏是兩回事時，寫死門檻，不要為了消警告去改 freq——
+        freq 會印在頁面的來源欄給讀者看。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, _ = run_scan(tmp, CALM)
+            tp = next(i for i in snapshot["indicators"] if i["key"] == "term_premium")
+            self.assertEqual(tp["freq"], "每日", "序列本身是每日的，不該被改標")
+            self.assertEqual(tp["stale_limit"], 40)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_bad_override_is_caught_by_self_test(self):
+        indicators = [{"key": "x", "label": "X", "sources": [{"provider": "fred", "id": "A"}],
+                       "stale_limit_days": 0}]
+        problems = scan.self_test(indicators, {"tripwires": [], "ladder": [],
+                                               "chains": [], "crowding": []},
+                                  lambda *a: None)
+        self.assertTrue(any("stale_limit_days" in p for p in problems), problems)
+
     def test_public_page_reads_the_flag_not_a_hardcoded_number(self):
         """門檻只能有一份。JS 裡再寫一次 7 天，改 Python 那邊就不會生效。"""
         with open(os.path.join(BASE_DIR, "lrconsole", "public_page.py"),

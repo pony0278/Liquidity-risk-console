@@ -366,6 +366,8 @@
       "unit": "%",
       "decimals": 2,
       "freq": "每日",
+      "_stale_note": "觀測本身是每日的（序列裡相鄰兩點差 1 個營業日，沒有缺口），但 FRED 是整批補上去的，發佈落後兩週以上：8/1、8/4、8/7 三次掃描抓到的最新觀測都停在 7/24。所以這裡不能靠 freq 推門檻——改標成「每週」會有兩個問題：頁面的來源欄會對讀者謊報頻率，而且 14 天的門檻明天就又會亮。40 天容得下一個月一批的節奏，同時真的斷掉還是抓得到。",
+      "stale_limit_days": 40,
       "source_label": "THREEFYTP10（Kim-Wright）",
       "sources": [{ "provider": "fred", "id": "THREEFYTP10" }],
       "threshold_text": "趨勢與黏著度，非單日",

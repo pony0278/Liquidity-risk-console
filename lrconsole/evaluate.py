@@ -288,7 +288,10 @@ def _assess_indicator(indicator, series_map, metrics, notes):
                           - datetime.strptime(series.latest_date(), "%Y-%m-%d").date()).days
         except ValueError:
             stale_days = None
-    stale_limit = stale_limit_for(indicator.get("freq"))
+    # 少數來源的「觀測頻率」與「發佈節奏」是兩回事（見 stale_limit_days 的
+    # 說明），那種就直接寫死門檻，不要為了消警告去謊報 freq——freq 會印在
+    # 頁面的來源欄給讀者看。
+    stale_limit = indicator.get("stale_limit_days") or stale_limit_for(indicator.get("freq"))
     is_stale = stale_days is not None and stale_days > stale_limit
 
     note = notes.get(key, {})
