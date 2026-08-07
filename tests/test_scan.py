@@ -790,15 +790,22 @@ class ScheduleTests(unittest.TestCase):
         self.assertEqual(code, 5)
         self.assertIn("本次跳過", output)
 
-    def test_previous_utc_day_runs_even_if_less_than_24h_ago(self):
-        """GitHub 的排程會抖動幾十分鐘。昨天 22:50 跑、今天 22:05 跑的話秒數
-        差只有 23 小時 15 分，用「差幾個 86400 秒」判會整天不掃。"""
+    def test_schedule_jitter_does_not_lose_a_day(self):
+        """GitHub 的排程實測延遲 1:26～2:45（跨度 1 小時 18 分），兩次實際執行
+        會相隔 22～26 小時。門檻若是整整 24 小時，只要前一次晚、這一次早就會
+        整天不掃——而且不會有任何東西變紅，只是默默沒資料。"""
         import time
-        yesterday_last_second = (int(time.time()) // 86400) * 86400 - 1
-        code, output = self._run_wrapper(yesterday_last_second)
-        self.assertNotEqual(code, 5)
-        self.assertNotIn("本次跳過", output)
-        self.assertIn("開始掃描", output)
+        now = int(time.time())
+        for hours in (23, 22, 19):
+            code, output = self._run_wrapper(now - hours * 3600)
+            self.assertNotEqual(code, 5, "距上次 %d 小時不該被跳過" % hours)
+            self.assertIn("開始掃描", output)
+
+    def test_far_too_soon_is_still_skipped(self):
+        """容許提前 6 小時，不是不管間隔。"""
+        import time
+        code, _ = self._run_wrapper(int(time.time()) - 10 * 3600)
+        self.assertEqual(code, 5)
 
 
 class WorkflowTests(unittest.TestCase):

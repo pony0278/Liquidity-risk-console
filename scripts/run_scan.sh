@@ -6,7 +6,7 @@
 #   LRC_INTERVAL_DAYS=7 scripts/run_scan.sh
 #
 # 間隔是參數而不是 cron 表達式：cron 的 */3 在月底會有一天的縫
-# （1,4,…,31 之後又是 1 號），而 GitHub 的排程本身也會延遲數十分鐘，
+# （1,4,…,31 之後又是 1 號），而 GitHub 的排程本身還會延遲 1～3 小時，
 # 用戳記檔比較準。
 #
 # 為什麼預設是 1 天：23 個指標裡 18 個是每日收盤，而規則表裡的引信
@@ -24,6 +24,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR" || exit 1
 
 INTERVAL_DAYS="${LRC_INTERVAL_DAYS:-1}"
+# 允許比間隔早這麼多小時就放行。GitHub 的排程實測延遲 1 小時 26 分到 2 小時
+# 45 分不等（跨度 1 小時 18 分），所以兩次實際執行的間隔會在 22～26 小時
+# 之間浮動；用「整整 24 小時」當門檻的話，只要前一次晚、這一次早，就會被
+# 判成「還沒到」而整天不掃。
+SLACK_HOURS="${LRC_INTERVAL_SLACK_HOURS:-6}"
 STAMP="$REPO_DIR/data/.last_scan"
 LOG_DIR="$REPO_DIR/logs"
 KEEP_LOGS="${LRC_KEEP_LOGS:-40}"
@@ -51,13 +56,14 @@ fi
 now_epoch=$(date +%s)
 if [ "$FORCE" -eq 0 ] && [ -f "$STAMP" ]; then
   last_epoch=$(cat "$STAMP" 2>/dev/null || echo 0)
-  # 用「差幾個 UTC 日」而不是「差幾個 86400 秒」。GitHub 的排程會延遲數十
-  # 分鐘且每次不同，昨天 22:50 跑、今天 22:05 跑的話，秒數差只有 23 小時
-  # 15 分，整除下來是 0 天——間隔設 1 時會被判成「還沒到」而整天不掃。
-  # 抖動造成的漏掃比偶爾多掃一次糟得多。
-  elapsed_days=$(( now_epoch / 86400 - last_epoch / 86400 ))
-  if [ "$elapsed_days" -lt "$INTERVAL_DAYS" ]; then
-    echo "距上次掃描 ${elapsed_days} 天（間隔設定 ${INTERVAL_DAYS} 天），本次跳過。"
+  # 門檻＝間隔減去容許提前量。抖動造成的漏掃比偶爾早半小時掃一次糟得多。
+  # （改用「差幾個 UTC 日」也不行：前一次 00:30 跑、這一次 22:30 跑會落在
+  # 同一個 UTC 日，一樣被跳過。）
+  min_gap=$(( INTERVAL_DAYS * 86400 - SLACK_HOURS * 3600 ))
+  [ "$min_gap" -lt 0 ] && min_gap=0
+  elapsed=$(( now_epoch - last_epoch ))
+  if [ "$elapsed" -lt "$min_gap" ]; then
+    echo "距上次掃描 $(( elapsed / 3600 )) 小時（間隔 ${INTERVAL_DAYS} 天，容許提前 ${SLACK_HOURS} 小時），本次跳過。"
     # 5＝「這次沒有掃」，跟 scan.py 自己的 0／10／20／30 分得開。跳過時
     # reports/latest.json 還是上一次的內容，呼叫端若把它當成本次結果，
     # 會把昨天的引信重新當成新的（例如又開一張 issue）。
