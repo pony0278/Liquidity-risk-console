@@ -38,7 +38,7 @@ open reports/index.html        # Linux 用 xdg-open，Windows 直接雙擊
 
 ### 為什麼是每天
 
-23 個非隱藏指標裡有 18 個是每日收盤，而 `config/rules.json` 的引信判定的
+非隱藏指標裡絕大多數是每日收盤，而 `config/rules.json` 的引信判定的
 就是**單日**變動（USD/JPY 單日 −2%、10Y／30Y 單日 +10bps）。間隔拉成 N 天
 等於每 N 個交易日只看 1 個收盤，落在被跳過那幾天的尖刺永遠不會被評估到。
 慢燈（TGA、準備金、初領失業金）一週才動一次，每天掃它只是每天確認「還沒
@@ -126,7 +126,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
 | 網址 | 給誰看 |
 | --- | --- |
 | `/`（index.html） | **公開版總覽**——先講結論（第幾階、為什麼），再給六格關鍵指標，每格附閾值軌道、火花線與白話說明 |
-| `/console.html` | **完整版控制盤**——23 格指標、四條傳導鏈、擁擠層，密度優先 |
+| `/console.html` | **完整版控制盤**——全部指標、四條傳導鏈、擁擠層，密度優先 |
 | `/latest.json` · `/series.json` | 結構化資料，可自行接走 |
 
 ### 「動態」是指什麼
@@ -149,8 +149,9 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
   文字標籤**表達，顏色只做強化。
 - **講「離門檻還有多遠」而不是只給數字。** 「HY OAS 284」對外人沒有意義，
   「離 350 還有 66bps」才有。每格都畫出閾值軌道與現在的位置。
-- **資料太舊會標出來。** 超過 7 天沒更新的指標會標紅字提示，避免有人把
-  兩週前的 MOVE 當成當前值讀。
+- **資料太舊會標出來。** 過期的指標會標紅字提示，避免有人把兩週前的 MOVE
+  當成當前值讀。門檻跟著各指標宣告的 `freq` 走（每日 7 天、每週 14、每月 75），
+  不是同一把尺——月頻的非農用日頻的尺去量會天天喊過期，天天亮的警告等於沒有警告。
 
 ---
 
@@ -159,7 +160,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
 | 檔案 | 內容 |
 | --- | --- |
 | `reports/index.html` | **公開版總覽**：先講結論，給沒讀過原始文件的人看 |
-| `reports/console.html` | **完整版控制盤**：密度優先，23 格指標與傳導鏈細節 |
+| `reports/console.html` | **完整版控制盤**：密度優先，全部指標與傳導鏈細節 |
 | `reports/series.json` | 火花線用的精簡序列（近 180 個觀測） |
 | `reports/console-YYYY-MM-DD.html` | 當次存檔 |
 | `reports/summary-YYYY-MM-DD.md` | 純文字摘要，適合貼進筆記或推播 |
@@ -203,14 +204,21 @@ HTML 版面與手工版一致，另外多了一段 **「本次變化」**：階�
 | Yahoo Finance | VIX、VVIX、MOVE、^TNX／^TYX、USD/JPY、DXY、WTI、NDX／SOX／N225 | FRED 沒有 MOVE／VVIX，只能走這裡 |
 | NY Fed Markets API | 附買回操作金額（含 SRF） | 見下方口徑說明 |
 
-指標可以有多個來源，第一個成功的勝出（例如 30Y 先試 Yahoo 的 `^TYX`
-取當日盤中，失敗才退回 FRED 的 `DGS30`）。
+指標可以有多個來源，**第一個「成功而且沒過期」的勝出**（例如 30Y 先試
+Yahoo 的 `^TYX` 取當日盤中，失敗或停更才退回 FRED 的 `DGS30`）。
+
+只看「成不成功」是不夠的：Yahoo 的 `^MOVE` 會正常回應 200、給滿滿兩年的
+資料，只是最後一筆停在三週前。那在「第一個成功的就用」之下算成功，備援
+來源永遠不會被叫到，等於沒加。全部來源都過期時，取其中最新的那個。
 
 ### 已知的資料坑（都已經處理，但值得知道）
 
 - **FRED 只留近 3 年**：`BAMLH0A0HYM2` 等系列自 2026/4 起只保留近三年觀測值。
   腳本每次都把抓到的點併進 `data/history.csv`，久了就有一份上游刪不掉的歷史。
-- **MOVE 不在 FRED**：改抓 Yahoo 的 `^MOVE`。
+- **MOVE 不在 FRED，而且 Yahoo 那條會整段停更**：實測停在 7/17 超過三週，
+  期間 API 照常回 200。沒有同尺標的第二來源可用，所以備援是另一格指標
+  （`vxtlt`，Cboe 的 TLT 波動率）。它**刻意不接進任何引信、傳導鏈或擁擠層**
+  ——尺標不同的替代品拿去餵原本為 MOVE 校準的閾值，比沒有資料更危險。
 - **SRF 沒有單獨欄位**：NY Fed API 給的是每筆 repo 操作，腳本把當日
   `totalAmtAccepted` 加總。所以這格的正確讀法是「Fed 今天有沒有在放錢給市場」，
   而不是純 SRF；季底與報稅日的關鍵日使用屬正常。

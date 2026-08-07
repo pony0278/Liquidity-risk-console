@@ -726,6 +726,8 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 
     console_link = "console.html"
     repo_line = ('<a href="%s">原始碼與完整歷史</a> · ' % _esc(repo_url)) if repo_url else ""
+    # 數格數，不要寫死。加一個指標就得記得回來改文案的地方，遲早會忘。
+    gauge_count = sum(1 for i in snapshot.get("indicators", []) if not i.get("hidden"))
 
     return """<!DOCTYPE html>
 <html lang="zh-Hant">
@@ -851,7 +853,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 <footer>
   <div>資料來源：FRED（聖路易聯準銀行）· NY Fed 公開市場操作 · 市場報價。
     每日美股收盤後由 GitHub Actions 自動掃描並重建本頁。</div>
-  <div style="margin-top:8px">%s<a href="%s">完整版控制盤（含全部 23 格指標與傳導鏈細節）</a>
+  <div style="margin-top:8px">%s<a href="%s">完整版控制盤（含全部 %d 格指標與傳導鏈細節）</a>
     · <a href="latest.json">原始 JSON</a>
     · <a href="privacy.html">隱私權政策</a></div>
   <p class="disc">本頁為個人監測用的指標與傳導路徑整理，數值取自公開資料源並可能有時間落差或修正，
@@ -868,5 +870,5 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 </html>
 """ % (_adsense_head(site), _CSS,
        _ad_unit(site, "after_hero"),
-       change_rows, _ad_unit(site, "footer"), repo_line, console_link,
+       change_rows, _ad_unit(site, "footer"), repo_line, console_link, gauge_count,
        boot_snapshot.replace("</", "<\\/"), boot_series.replace("</", "<\\/"), script)

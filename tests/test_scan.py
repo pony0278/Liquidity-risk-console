@@ -20,7 +20,7 @@ import scan  # noqa: E402
 from fixtures import CALM, STRESS, write_history  # noqa: E402
 from lrconsole import diff as diff_mod  # noqa: E402
 from lrconsole.expr import ExprError, evaluate, evaluate_value  # noqa: E402
-from lrconsole.fetch import Fetcher  # noqa: E402
+from lrconsole.fetch import FetchResult, Fetcher  # noqa: E402
 from lrconsole.history import load_history, save_history  # noqa: E402
 from lrconsole.series import Series, build_metrics  # noqa: E402
 
@@ -807,6 +807,86 @@ class StaleTests(unittest.TestCase):
             source = handle.read()
         self.assertIn("var stale = i.stale", source)
         self.assertNotIn("i.stale_days >", source)
+
+
+class SourceFallbackTests(unittest.TestCase):
+    """備援來源只在「第一個來源失敗」時才用是不夠的。Yahoo 的 ^MOVE 會正常
+    回應 200、給滿滿兩年的資料，只是最後一筆停在三週前——那在舊寫法下算
+    成功，備援永遠不會被叫到，等於沒加。"""
+
+    class _StubFetcher:
+        """依 source["id"] 回傳預先排好的結果，並記錄問了誰。"""
+
+        def __init__(self, plan):
+            self.plan = plan
+            self.asked = []
+
+        def fetch(self, key, source):
+            self.asked.append(source["id"])
+            entry = self.plan[source["id"]]
+            if entry is None:
+                return FetchResult(key, ok=False, provider=source["provider"],
+                                   detail="stub 失敗")
+            return FetchResult(key, series=Series([(entry, 1.0)]), ok=True,
+                               provider=source["provider"])
+
+    @staticmethod
+    def _days_ago(days):
+        return (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+
+    def _pick(self, plan, ids):
+        indicator = {"key": "x", "freq": "每日",
+                     "sources": [{"provider": "p%d" % n, "id": i} for n, i in enumerate(ids)]}
+        fetcher = self._StubFetcher(plan)
+        chosen, index, failure = scan.pick_source(fetcher, "x", indicator)
+        return chosen, index, failure, fetcher.asked
+
+    def test_fresh_primary_short_circuits(self):
+        """主來源新鮮就不該再去打備援——省一次網路往返，也避免多餘的失敗訊息。"""
+        plan = {"A": self._days_ago(1), "B": self._days_ago(0)}
+        chosen, index, _, asked = self._pick(plan, ["A", "B"])
+        self.assertEqual(asked, ["A"])
+        self.assertEqual(index, 0)
+        self.assertEqual(chosen.series.latest_date(), plan["A"])
+
+    def test_stale_but_successful_primary_falls_through_to_backup(self):
+        plan = {"A": self._days_ago(21), "B": self._days_ago(1)}
+        chosen, index, _, asked = self._pick(plan, ["A", "B"])
+        self.assertEqual(asked, ["A", "B"], "主來源過期時必須繼續問備援")
+        self.assertEqual(index, 1)
+        self.assertEqual(chosen.series.latest_date(), plan["B"])
+
+    def test_all_stale_keeps_the_freshest(self):
+        plan = {"A": self._days_ago(30), "B": self._days_ago(12), "C": self._days_ago(40)}
+        chosen, index, _, _ = self._pick(plan, ["A", "B", "C"])
+        self.assertEqual(index, 1)
+        self.assertEqual(chosen.series.latest_date(), plan["B"])
+
+    def test_one_failure_plus_one_success_is_not_a_fetch_failure(self):
+        """舊寫法留的是「最後一次嘗試」，主來源成功、備援失敗會被記成抓取失敗，
+        整份報表因此掛上假的資料缺口（離開碼 20）。"""
+        plan = {"A": self._days_ago(21), "B": None}
+        chosen, _, failure, asked = self._pick(plan, ["A", "B"])
+        self.assertEqual(asked, ["A", "B"])
+        self.assertTrue(chosen.ok, "有一個來源成功就不算抓取失敗")
+        self.assertEqual(chosen.series.latest_date(), plan["A"])
+        self.assertIsNotNone(failure, "失敗的來源仍要能被記錄下來")
+
+    def test_all_sources_failing_still_reports_failure(self):
+        chosen, _, _, _ = self._pick({"A": None, "B": None}, ["A", "B"])
+        self.assertFalse(chosen.ok)
+
+    def test_move_has_a_documented_backup_reading(self):
+        """MOVE 沒有同尺標的第二來源（FRED 不收這條），備援是另一格指標，
+        而且刻意不接進任何規則——尺標不同的替代品去餵為 MOVE 校準的閾值，
+        比沒有資料更危險。"""
+        with open(os.path.join(BASE_DIR, "config", "indicators.json"),
+                  encoding="utf-8") as handle:
+            indicators = {i["key"]: i for i in json.load(handle)["indicators"]}
+        self.assertIn("vxtlt", indicators)
+        self.assertEqual(indicators["vxtlt"]["tier"], indicators["move"]["tier"])
+        with open(os.path.join(BASE_DIR, "config", "rules.json"), encoding="utf-8") as handle:
+            self.assertNotIn("vxtlt", handle.read())
 
 
 class PruneTests(unittest.TestCase):

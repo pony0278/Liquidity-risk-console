@@ -30,9 +30,10 @@ from lrconsole import history as history_mod  # noqa: E402
 from lrconsole import notify as notify_mod  # noqa: E402
 from lrconsole import public_page  # noqa: E402
 from lrconsole import render as render_mod  # noqa: E402
-from lrconsole.evaluate import build_snapshot, resolve_series  # noqa: E402
+from lrconsole.evaluate import (build_snapshot, resolve_series,  # noqa: E402
+                                stale_limit_for_indicator)
 from lrconsole.expr import ExprError, referenced_names  # noqa: E402
-from lrconsole.fetch import Fetcher  # noqa: E402
+from lrconsole.fetch import FetchResult, Fetcher  # noqa: E402
 from lrconsole.series import Series, build_metrics  # noqa: E402
 
 EXIT_OK = 0
@@ -168,6 +169,47 @@ def self_test(indicator_cfg, rules_cfg, log):
 _DATED_REPORT = re.compile(r"^(console|snapshot|summary)-(\d{4}-\d{2}-\d{2})\.(html|json|md)$")
 
 
+def _age_days(date_text, today=None):
+    """觀測日期距今幾天。沒有日期就當成無限舊。"""
+    if not date_text:
+        return 10 ** 6
+    try:
+        observed = datetime.strptime(date_text, "%Y-%m-%d").date()
+    except ValueError:
+        return 10 ** 6
+    return ((today or datetime.now(timezone.utc).date()) - observed).days
+
+
+def pick_source(fetcher, key, indicator, today=None):
+    """依序試每個來源，回傳 (採用的結果, 它的序號, 最後一個失敗的來源)。
+
+    不是「第一個成功的就用」。Yahoo 的 ^MOVE 會正常回應 200、給滿滿兩年的
+    資料，只是最後一筆停在三週前——在舊的寫法下這算成功，於是備援來源永遠
+    不會被叫到，備援等於沒加。
+
+    所以成功還要看新不新鮮：第一個沒過期的就收工，全都過期就挑最新的那個。
+    全部失敗才回傳失敗，而且回傳的是「最後一個失敗」而不是「最後一次嘗試」
+    ——否則一個成功、一個失敗的組合會被記成抓取失敗。
+    """
+    limit = stale_limit_for_indicator(indicator)
+    best = None
+    best_index = 0
+    failure = None
+    for index, source in enumerate(indicator.get("sources") or []):
+        result = fetcher.fetch(key, source)
+        if not result.ok:
+            failure = result
+            continue
+        if best is None or _age_days(result.series.latest_date(), today) \
+                < _age_days(best.series.latest_date(), today):
+            best, best_index = result, index
+        if _age_days(result.series.latest_date(), today) <= limit:
+            break
+    if best is not None:
+        return best, best_index, failure
+    return failure or FetchResult(key, ok=False, detail="沒有可用的來源"), 0, failure
+
+
 def prune_dated_reports(out_dir, keep, log):
     """只留最近 keep 天的帶日期存檔。
 
@@ -256,20 +298,24 @@ def main(argv=None):
             if not sources:
                 continue
             key = indicator["key"]
-            last = None
-            for source in sources:
-                result = fetcher.fetch(key, source)
-                last = result
-                if result.ok:
-                    break
-            fetched[key] = last
-            if last.ok:
-                log("  ✓ %-14s %-6s %4d 點，最新 %s %s"
-                    % (key, last.provider, len(last.series),
-                       last.series.latest_date(), last.detail))
+            chosen, index, failure = pick_source(fetcher, key, indicator)
+            fetched[key] = chosen
+            if chosen.ok:
+                age = _age_days(chosen.series.latest_date())
+                marks = []
+                if index > 0:
+                    marks.append("備援#%d" % (index + 1))
+                if age > stale_limit_for_indicator(indicator):
+                    marks.append("已 %d 天未更新" % age)
+                log("  ✓ %-14s %-6s %4d 點，最新 %s %s%s"
+                    % (key, chosen.provider, len(chosen.series),
+                       chosen.series.latest_date(), chosen.detail,
+                       ("（%s）" % "、".join(marks)) if marks else ""))
+                if failure is not None:
+                    log("      （%s 來源失敗：%s）" % (failure.provider, failure.detail))
             else:
-                log("  ✗ %-14s %s" % (key, last.detail))
-                data_notes.append("%s 抓取失敗：%s" % (indicator.get("label", key), last.detail))
+                log("  ✗ %-14s %s" % (key, chosen.detail))
+                data_notes.append("%s 抓取失敗：%s" % (indicator.get("label", key), chosen.detail))
 
     log("\n[3/5] 合併歷史並計算衍生序列")
     series_map, notes = resolve_series(indicator_cfg, fetched, history,

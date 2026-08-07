@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from .expr import evaluate, evaluate_value, referenced_names
 from .series import Series, build_metrics
 
-__all__ = ["build_snapshot", "stale_limit_for", "STATUS_ORDER", "status_worse"]
+__all__ = ["build_snapshot", "stale_limit_for", "stale_limit_for_indicator",
+           "STATUS_ORDER", "status_worse"]
 
 STATUS_ORDER = {"unknown": -1, "info": -1, "ok": 0, "watch": 1, "press": 2, "alarm": 3}
 STATUS_TEXT = {"ok": "正常", "watch": "警示", "press": "明確壓力", "alarm": "警報",
@@ -36,6 +37,11 @@ def stale_limit_for(freq):
         if text.startswith(prefix):
             return limit
     return DEFAULT_STALE_LIMIT_DAYS
+
+
+def stale_limit_for_indicator(indicator):
+    """指標自己寫死的 stale_limit_days 優先，否則按 freq 推。"""
+    return indicator.get("stale_limit_days") or stale_limit_for(indicator.get("freq"))
 
 
 def status_worse(a, b):
@@ -291,7 +297,7 @@ def _assess_indicator(indicator, series_map, metrics, notes):
     # 少數來源的「觀測頻率」與「發佈節奏」是兩回事（見 stale_limit_days 的
     # 說明），那種就直接寫死門檻，不要為了消警告去謊報 freq——freq 會印在
     # 頁面的來源欄給讀者看。
-    stale_limit = indicator.get("stale_limit_days") or stale_limit_for(indicator.get("freq"))
+    stale_limit = stale_limit_for_indicator(indicator)
     is_stale = stale_days is not None and stale_days > stale_limit
 
     note = notes.get(key, {})
