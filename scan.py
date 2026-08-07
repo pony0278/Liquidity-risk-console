@@ -16,6 +16,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -56,6 +57,9 @@ def parse_args(argv=None):
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--history-days", type=int, default=1500,
                         help="history.csv 每個系列保留的觀測筆數上限")
+    parser.add_argument("--keep-daily", type=int, default=60,
+                        help="reports/ 裡帶日期的存檔（console-／snapshot-／summary-）"
+                             "保留幾天份，0＝不清理")
     parser.add_argument("--notify", choices=["auto", "always", "never"], default="auto",
                         help="auto＝只在有觸發或有變化時推播")
     parser.add_argument("--self-test", action="store_true",
@@ -158,6 +162,39 @@ def self_test(indicator_cfg, rules_cfg, log):
     return problems
 
 
+_DATED_REPORT = re.compile(r"^(console|snapshot|summary)-(\d{4}-\d{2}-\d{2})\.(html|json|md)$")
+
+
+def prune_dated_reports(out_dir, keep, log):
+    """只留最近 keep 天的帶日期存檔。
+
+    每次掃描會多出 console-／snapshot-／summary- 三個檔，約 180 KB。每 3 天
+    一次時無所謂，改成每天就是一年 65 MB 進版控。真正的資料在
+    data/history.csv，這些是可以從它重畫出來的副本。
+
+    注意：刪掉只讓工作目錄與 Pages 站台變乾淨，git 物件庫裡的舊版本仍然
+    留著——這裡不試圖改寫歷史。
+    """
+    if keep <= 0 or not os.path.isdir(out_dir):
+        return
+    dates = set()
+    for name in os.listdir(out_dir):
+        match = _DATED_REPORT.match(name)
+        if match:
+            dates.add(match.group(2))
+    doomed = sorted(dates, reverse=True)[keep:]
+    if not doomed:
+        return
+    removed = 0
+    for name in os.listdir(out_dir):
+        match = _DATED_REPORT.match(name)
+        if match and match.group(2) in doomed:
+            os.remove(os.path.join(out_dir, name))
+            removed += 1
+    log("  清掉 %d 個超過 %d 天份的存檔（最舊保留到 %s）"
+        % (removed, keep, sorted(dates, reverse=True)[keep - 1]))
+
+
 def main(argv=None):
     args = parse_args(argv)
     log = log_factory(args.quiet)
@@ -165,9 +202,14 @@ def main(argv=None):
 
     previous = history_mod.load_json(os.path.join(args.out_dir, "latest.json"))
     inherited_changes = None
+    inherited_delta = None
     if args.rebuild:
         args.no_fetch = True
         if previous and previous.get("scan_time"):
+            # 重畫時 previous 就是這份快照自己，比出來的引信變化必然全空——
+            # 那會把「今天有新引信亮起」抹成「沒事」，於是發佈頁面的那一步
+            # 反而消掉了掃描剛剛偵測到的警報。沿用，不重算。
+            inherited_delta = previous.get("tripwire_delta")
             # 重畫頁面不是一次新的掃描：時間戳與「與上次相比」都必須沿用，
             # 否則每次改模板都會謊報掃描時間，並把真正的變更清單洗掉。
             scan_time = previous["scan_time"]
@@ -254,8 +296,17 @@ def main(argv=None):
     snapshot["data_notes"] = data_notes
 
     fired = [w for w in snapshot["tripwires"] if w["state"] is True]
+    delta = inherited_delta if inherited_delta is not None \
+        else diff_mod.tripwire_delta(snapshot, previous)
+    snapshot["tripwire_delta"] = delta
     log("  判定：第 %d 階 · %s" % (snapshot["level"], snapshot["verdict"]["headline"]))
     log("  觸發中的引信：%s" % ("、".join(w["code"] for w in fired) if fired else "無"))
+    if delta["new"]:
+        log("    ↳ 新亮：%s" % "、".join(delta["new"]))
+    if delta["cleared"]:
+        log("    ↳ 解除：%s" % "、".join(delta["cleared"]))
+    if delta["ongoing"]:
+        log("    ↳ 續亮：%s（不重複通知）" % "、".join(delta["ongoing"]))
 
     log("\n[5/5] 產出報表")
     date_tag = scan_time[:10]
@@ -315,13 +366,17 @@ def main(argv=None):
 
     history_mod.save_json(os.path.join(args.out_dir, "latest.json"), snapshot)
     history_mod.save_json(os.path.join(args.out_dir, "snapshot-%s.json" % date_tag), snapshot)
+    prune_dated_reports(args.out_dir, args.keep_daily, log)
 
     log("\n--- 本次變化 ---")
     for severity, text in changes:
         log("  %s %s" % ({"alert": "🔴", "warn": "🟡", "info": "·"}.get(severity, "·"), text))
 
+    # 條件刻意不是「fired 非空」：那是「還亮著」，每天掃就會每天推播同一件事。
+    # 要推的是「集合變了」——新亮、解除，或有 alert／warn 等級的其他變化。
     should_notify = args.notify == "always" or (
-        args.notify == "auto" and (fired or any(s in ("alert", "warn") for s, _ in changes)))
+        args.notify == "auto" and (delta["new"] or delta["cleared"]
+                                   or any(s in ("alert", "warn") for s, _ in changes)))
     if should_notify:
         ok, detail = notify_mod.send_webhook(notify_mod.build_message(snapshot, changes))
         log("\n推播：%s" % detail)

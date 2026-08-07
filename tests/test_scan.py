@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, "tests"))
 
 import scan  # noqa: E402
 from fixtures import CALM, STRESS, write_history  # noqa: E402
+from lrconsole import diff as diff_mod  # noqa: E402
 from lrconsole.expr import ExprError, evaluate, evaluate_value  # noqa: E402
 from lrconsole.fetch import Fetcher  # noqa: E402
 from lrconsole.history import load_history, save_history  # noqa: E402
@@ -634,6 +635,190 @@ class SelfTestTests(unittest.TestCase):
             self.assertEqual(scale, 0.001, "%s 少了百萬→十億的換算" % key)
         # RRPONTSYD 本來就是十億，多套一次反而會錯。
         self.assertNotIn("scale", indicators["rrp"]["sources"][0])
+
+
+class TripwireDeltaTests(unittest.TestCase):
+    """「還亮著」不是新聞。改成每天掃之後，一根連續亮著的引信如果每次都
+    算觸發，就會每天推播、每天開一張 issue，講的卻是同一件事。"""
+
+    @staticmethod
+    def _snap(states):
+        return {"tripwires": [{"id": k, "code": k.upper(), "state": v}
+                              for k, v in states.items()]}
+
+    def test_no_previous_counts_everything_as_new(self):
+        delta = diff_mod.tripwire_delta(self._snap({"a": True, "b": False}), None)
+        self.assertEqual(delta["new"], ["A"])
+        self.assertEqual(delta["cleared"], [])
+        self.assertEqual(delta["ongoing"], [])
+
+    def test_still_lit_is_ongoing_not_new(self):
+        before = self._snap({"a": True, "b": False})
+        after = self._snap({"a": True, "b": True})
+        delta = diff_mod.tripwire_delta(after, before)
+        self.assertEqual(delta["new"], ["B"])
+        self.assertEqual(delta["ongoing"], ["A"])
+        self.assertEqual(delta["cleared"], [])
+
+    def test_cleared_is_reported(self):
+        delta = diff_mod.tripwire_delta(self._snap({"a": False}), self._snap({"a": True}))
+        self.assertEqual(delta["cleared"], ["A"])
+        self.assertEqual(delta["new"], [])
+
+    def test_unknown_state_is_not_a_trigger(self):
+        """資料缺時 state 是 None，那是「不知道」，不能當成觸發或解除。"""
+        delta = diff_mod.tripwire_delta(self._snap({"a": None}), self._snap({"a": None}))
+        self.assertEqual(delta, {"new": [], "cleared": [], "ongoing": []})
+
+    def test_wire_removed_from_config_still_reports_cleared(self):
+        delta = diff_mod.tripwire_delta({"tripwires": []}, self._snap({"a": True}))
+        self.assertEqual(delta["cleared"], ["A"])
+
+    def test_full_scan_marks_second_identical_scan_as_ongoing(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            _, first, _ = run_scan(tmp, STRESS)
+            self.assertTrue(first["tripwire_delta"]["new"], "第一次掃到的引信應算新亮")
+            _, second, _ = run_scan(tmp, STRESS)
+            self.assertEqual(second["tripwire_delta"]["new"], [])
+            self.assertEqual(sorted(second["tripwire_delta"]["ongoing"]),
+                             sorted(first["tripwire_delta"]["new"]))
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_ongoing_only_does_not_notify(self):
+        sent = []
+        original = scan.notify_mod.send_webhook
+        scan.notify_mod.send_webhook = lambda text: (sent.append(text), (True, "stub"))[1]
+        tmp = tempfile.mkdtemp()
+        try:
+            run_scan(tmp, STRESS, extra_args=("--notify", "auto"))
+            self.assertEqual(len(sent), 1, "第一次有新引信，應該推播")
+            run_scan(tmp, STRESS, extra_args=("--notify", "auto"))
+            self.assertEqual(len(sent), 1, "同樣的引信還亮著，不該再推一次")
+        finally:
+            scan.notify_mod.send_webhook = original
+            shutil.rmtree(tmp)
+
+    def test_rebuild_inherits_delta_instead_of_zeroing_it(self):
+        """重畫時 previous 就是快照自己，重算必然全空——那會把剛偵測到的
+        新引信抹掉，發佈頁面的那一步反而消掉了警報。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            run_scan(tmp, CALM)
+            _, scanned, out_dir = run_scan(tmp, STRESS)
+            self.assertTrue(scanned["tripwire_delta"]["new"])
+            scan.main([
+                "--config-dir", os.path.join(BASE_DIR, "config"),
+                "--data-dir", os.path.join(tmp, "data"),
+                "--out-dir", out_dir,
+                "--rebuild", "--notify", "never", "--quiet",
+            ])
+            with open(os.path.join(out_dir, "latest.json"), encoding="utf-8") as handle:
+                rebuilt = json.load(handle)
+            self.assertEqual(rebuilt["tripwire_delta"], scanned["tripwire_delta"])
+        finally:
+            shutil.rmtree(tmp)
+
+
+class PruneTests(unittest.TestCase):
+    def test_keeps_newest_n_dates_and_spares_undated_files(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            dates = ["2026-01-%02d" % d for d in range(1, 11)]
+            for date in dates:
+                for name in ("console-%s.html", "snapshot-%s.json", "summary-%s.md"):
+                    open(os.path.join(tmp, name % date), "w").close()
+            for name in ("console.html", "index.html", "latest.json", "series.json"):
+                open(os.path.join(tmp, name), "w").close()
+
+            scan.prune_dated_reports(tmp, 3, lambda *a: None)
+            left = set(os.listdir(tmp))
+            for date in dates[-3:]:
+                self.assertIn("console-%s.html" % date, left)
+            for date in dates[:-3]:
+                self.assertNotIn("console-%s.html" % date, left)
+                self.assertNotIn("snapshot-%s.json" % date, left)
+                self.assertNotIn("summary-%s.md" % date, left)
+            # 沒有日期的那幾個是每次掃描都要覆寫的正本，絕對不能被掃到。
+            for name in ("console.html", "index.html", "latest.json", "series.json"):
+                self.assertIn(name, left)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_zero_means_no_pruning(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            open(os.path.join(tmp, "summary-2020-01-01.md"), "w").close()
+            scan.prune_dated_reports(tmp, 0, lambda *a: None)
+            self.assertIn("summary-2020-01-01.md", os.listdir(tmp))
+        finally:
+            shutil.rmtree(tmp)
+
+
+class ScheduleTests(unittest.TestCase):
+    """排程的間隔判定。這一類錯誤不會讓任何東西變紅，只會讓掃描默默不跑。"""
+
+    def _run_wrapper(self, stamp_epoch):
+        import subprocess
+        tmp = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(tmp, "scripts"))
+            os.makedirs(os.path.join(tmp, "data"))
+            shutil.copy(os.path.join(BASE_DIR, "scripts", "run_scan.sh"),
+                        os.path.join(tmp, "scripts", "run_scan.sh"))
+            with open(os.path.join(tmp, "data", ".last_scan"), "w") as handle:
+                handle.write("%d\n" % stamp_epoch)
+            # LRC_PYTHON=true 讓包裝腳本走完流程但不真的跑掃描。
+            proc = subprocess.run(
+                ["bash", os.path.join(tmp, "scripts", "run_scan.sh")],
+                env={**os.environ, "LRC_PYTHON": "true"},
+                capture_output=True, text=True, timeout=60)
+            return proc.returncode, proc.stdout + proc.stderr
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_default_interval_is_daily(self):
+        with open(os.path.join(BASE_DIR, "scripts", "run_scan.sh"), encoding="utf-8") as handle:
+            self.assertIn("${LRC_INTERVAL_DAYS:-1}", handle.read())
+
+    def test_same_day_is_skipped_with_its_own_exit_code(self):
+        """跳過必須跟「跑完了」分得開：跳過時 reports/ 是上一次的內容，
+        呼叫端若當成本次結果，昨天的引信會被重新當成新的。"""
+        import time
+        code, output = self._run_wrapper(int(time.time()))
+        self.assertEqual(code, 5)
+        self.assertIn("本次跳過", output)
+
+    def test_previous_utc_day_runs_even_if_less_than_24h_ago(self):
+        """GitHub 的排程會抖動幾十分鐘。昨天 22:50 跑、今天 22:05 跑的話秒數
+        差只有 23 小時 15 分，用「差幾個 86400 秒」判會整天不掃。"""
+        import time
+        yesterday_last_second = (int(time.time()) // 86400) * 86400 - 1
+        code, output = self._run_wrapper(yesterday_last_second)
+        self.assertNotEqual(code, 5)
+        self.assertNotIn("本次跳過", output)
+        self.assertIn("開始掃描", output)
+
+
+class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        path = os.path.join(BASE_DIR, ".github", "workflows", "scan.yml")
+        with open(path, encoding="utf-8") as handle:
+            self.text = handle.read()
+
+    def test_scheduled_after_us_close(self):
+        """22:00 UTC ＝ 美東 17:00／18:00，夏令冬令都在收盤與 H.15 發佈之後。
+        12:00 UTC 是開盤前，抓到的永遠是前一個交易日。"""
+        self.assertIn('cron: "0 22 * * *"', self.text)
+
+    def test_issue_is_gated_on_new_wires_not_on_exit_code(self):
+        self.assertIn("steps.delta.outputs.new_count", self.text)
+        self.assertNotIn("steps.scan.outputs.status == '10'", self.text)
+
+    def test_delta_step_is_skipped_when_the_scan_did_not_run(self):
+        """間隔沒到時 reports/latest.json 是上一次的，不能拿來判斷「新引信」。"""
+        self.assertIn("steps.scan.outputs.ran == '1'", self.text)
 
 
 if __name__ == "__main__":

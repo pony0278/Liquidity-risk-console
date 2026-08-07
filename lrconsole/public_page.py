@@ -731,9 +731,9 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>流動性與尾部風險監測</title>
-<meta name="description" content="美國流動性與尾部風險的五層監測盤，每 3 天自動更新。先講結論，再給數字。">
+<meta name="description" content="美國流動性與尾部風險的五層監測盤，每個交易日收盤後自動更新。先講結論，再給數字。">
 <meta property="og:title" content="流動性與尾部風險監測">
-<meta property="og:description" content="五層壓力盤 · 每 3 天自動掃描 · 資料取自 FRED／NY Fed／市場報價">
+<meta property="og:description" content="五層壓力盤 · 每日自動掃描 · 資料取自 FRED／NY Fed／市場報價">
 %s<style>%s</style>
 </head>
 <body>
@@ -746,7 +746,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
       <h1>流動性與尾部風險監測</h1>
     </div>
     <div class="stamp anno">
-      <div class="live"><span class="dot"></span>每 3 天自動掃描</div>
+      <div class="live"><span class="dot"></span>每日自動掃描</div>
       <div>資料截至 <span id="as-of" class="num">—</span></div>
       <div>掃描時間 <span id="scanned" class="num">—</span></div>
       <div id="live-note">載入中…</div>
@@ -848,7 +848,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 
 <footer>
   <div>資料來源：FRED（聖路易聯準銀行）· NY Fed 公開市場操作 · 市場報價。
-    每 3 天由 GitHub Actions 自動掃描並重建本頁。</div>
+    每日美股收盤後由 GitHub Actions 自動掃描並重建本頁。</div>
   <div style="margin-top:8px">%s<a href="%s">完整版控制盤（含全部 23 格指標與傳導鏈細節）</a>
     · <a href="latest.json">原始 JSON</a>
     · <a href="privacy.html">隱私權政策</a></div>

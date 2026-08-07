@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # 安裝 cron 排程（macOS／Linux）。
 #
-#   scripts/install_cron.sh            # 每天 08:10 叫一次，實際每 3 天才掃
+#   scripts/install_cron.sh            # 每天 08:10 叫一次
 #   scripts/install_cron.sh --remove   # 移除
 #
-# 為什麼是「每天叫」而不是 cron 的 */3？因為 */3 是「每月第 1,4,7…31 天」，
-# 月底到月初會出現一天的縫，而且電腦關機錯過就整個跳過。改成每天叫、
-# 由 run_scan.sh 的戳記檔決定要不要真的跑，間隔才會穩定是 3 天。
+# 間隔由 run_scan.sh 的戳記檔（data/.last_scan）決定，預設每天一次；
+# 想拉長就設 LRC_INTERVAL_DAYS。把間隔放在戳記檔而不是 cron 的 */N，
+# 是因為 */3 這種寫法是「每月第 1,4,7…31 天」，月底到月初會出現一天的
+# 縫，而且電腦關機錯過就整個跳過（這裡下一次叫到就會補上）。
 
 set -euo pipefail
 

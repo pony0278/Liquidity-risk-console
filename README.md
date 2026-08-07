@@ -1,7 +1,7 @@
 # 流動性與尾部風險監測 — 自動掃描
 
-把原本手工維護的那張「系統壓力盤」變成一支腳本：**每 3 天自動抓資料 →
-套用閾值與傳導鏈規則 → 重畫同一張控制盤 → 告訴你這三天有什麼在動。**
+把原本手工維護的那張「系統壓力盤」變成一支腳本：**每天自動抓資料 →
+套用閾值與傳導鏈規則 → 重畫同一張控制盤 → 告訴你從上次到現在有什麼在動。**
 
 只用 Python 3 標準函式庫，沒有任何第三方套件要裝。
 
@@ -34,22 +34,34 @@ open reports/index.html        # Linux 用 xdg-open，Windows 直接雙擊
 
 ---
 
-## 2. 排成每 3 天自動跑
+## 2. 排成自動跑
 
-### 為什麼不用 cron 的 `*/3`
+### 為什麼是每天
+
+23 個非隱藏指標裡有 18 個是每日收盤，而 `config/rules.json` 的引信判定的
+就是**單日**變動（USD/JPY 單日 −2%、10Y／30Y 單日 +10bps）。間隔拉成 N 天
+等於每 N 個交易日只看 1 個收盤，落在被跳過那幾天的尖刺永遠不會被評估到。
+慢燈（TGA、準備金、初領失業金）一週才動一次，每天掃它只是每天確認「還沒
+發佈」，沒有代價；公開 repo 的 Actions 分鐘數也是免費無上限的。
+
+想改成週報式的節奏就設 `LRC_INTERVAL_DAYS=7`（搭配週四跑，週三的 H.4.1
+與週四的失業金都已經出來）。
+
+### 為什麼不用 cron 的 `*/N`
 
 `0 8 */3 * *` 的意思是「每月的 1, 4, 7 … 31 號」，月底到月初會出現只隔
 一天的縫；而且電腦當下沒開機就整次跳過。
 
 這裡的做法是：**排程每天叫一次，由包裝腳本的戳記檔（`data/.last_scan`）
-決定要不要真的掃。** 間隔穩定是 3 天，漏跑也會在下一次補上。想改間隔就設
-`LRC_INTERVAL_DAYS`。
+決定要不要真的掃。** 間隔就是 `LRC_INTERVAL_DAYS`（預設 1），漏跑也會在
+下一次補上。戳記比對用的是「差幾個 UTC 日」而不是「差幾個 86400 秒」——
+排程抖動個幾十分鐘的話，秒數差會少於一天而整天不掃。
 
 ### macOS / Linux
 
 ```bash
 chmod +x scripts/*.sh
-./scripts/install_cron.sh          # 每天 08:10 叫一次，實際每 3 天掃一次
+./scripts/install_cron.sh          # 每天 08:10 叫一次
 ./scripts/install_cron.sh --remove # 移除
 
 ./scripts/run_scan.sh --force      # 手動立刻跑一次
@@ -81,8 +93,13 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
 
 ### GitHub Actions（不必自己的電腦開機）
 
-`.github/workflows/scan.yml` 已經設好：每天叫一次、實際每 3 天掃一次，
-把 `reports/` 與 `data/history.csv` 提交回 repo，並在有引信觸發時自動開 issue。
+`.github/workflows/scan.yml` 已經設好：每天 22:00 UTC 掃一次（＝美東
+17:00／18:00，夏令冬令都在美股收盤與 H.15 殖利率發佈之後），把 `reports/`
+與 `data/history.csv` 提交回 repo，並在**有新引信亮起時**自動開 issue。
+
+「新」是關鍵：判斷依據是引信集合有沒有變（`latest.json` 的
+`tripwire_delta`），不是「現在有沒有引信亮著」。否則一根連續亮 30 天的引信
+會開 30 張 issue、推 30 次 webhook，講的卻是同一件事。
 
 可選的 secrets：
 
@@ -110,7 +127,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remov
 
 ### 「動態」是指什麼
 
-資料每 3 天更新一次，所以頁面**不是**即時報價。動態的部分是：頁面載入時
+資料每天更新一次，所以頁面**不是**即時報價。動態的部分是：頁面載入時
 會用 `fetch` 重抓 `latest.json` 與 `series.json`（帶時間戳避開快取），因此
 即使瀏覽器或 CDN 快取了 HTML，看到的仍是最新一次掃描；開著的分頁每 15
 分鐘也會自己重抓一次。
@@ -161,6 +178,16 @@ HTML 版面與手工版一致，另外多了一段 **「本次變化」**：階�
 | 20 | 部分指標抓取失敗（判定仍完成，但有缺口） |
 | 30 | 兩者都有 |
 | 1 | 掃描本身失敗 |
+| 5 | **`scripts/run_scan.sh` 專用**：間隔還沒到，這次沒掃（`scan.py` 不會回這個碼） |
+
+碼 10 是「現在有引信亮著」，不是「剛剛亮起來」。要判斷後者請看
+`reports/latest.json` 的 `tripwire_delta`：
+
+```json
+"tripwire_delta": {"new": [...], "cleared": [...], "ongoing": [...]}
+```
+
+碼 5 的時候 `reports/` 還是上一次的內容，別把它當成本次結果。
 
 ---
 
@@ -289,10 +316,16 @@ PY
 --offline          不連網，只用快取與 history.csv 重算
 --no-fetch         完全跳過抓取，純粹重畫報表
 --self-test        只檢查設定檔與表達式
---notify always|auto|never
+--notify always|auto|never（auto＝引信集合有變或有 alert／warn 級變化才推）
 --history-days N   history.csv 每個系列保留的觀測筆數（預設 1500）
+--keep-daily N     reports/ 裡帶日期的存檔保留幾天份（預設 60，0＝不清理）
 --timeout / --retries
 ```
+
+每次掃描會多出 `console-DATE.html`、`snapshot-DATE.json`、`summary-DATE.md`
+約 180 KB；每天掃就是一年 65 MB。`--keep-daily` 只清工作目錄與 Pages 站台，
+git 物件庫裡的舊版本仍然留著（不改寫歷史）。真正的資料在
+`data/history.csv`，這些存檔隨時可以用 `--rebuild` 重畫出來。
 
 ---
 

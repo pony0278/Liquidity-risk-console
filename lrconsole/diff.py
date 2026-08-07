@@ -7,7 +7,7 @@
 
 from .evaluate import STATUS_ORDER
 
-__all__ = ["diff_snapshots", "render_markdown_summary"]
+__all__ = ["diff_snapshots", "tripwire_delta", "render_markdown_summary"]
 
 _MOVE_THRESHOLD = {
     "hy_oas": 15, "ig_oas": 8, "ccc_oas": 40, "hy_ig": 15,
@@ -21,6 +21,34 @@ _MOVE_THRESHOLD = {
 
 def _index(snapshot, field, key="key"):
     return {item[key]: item for item in snapshot.get(field, [])}
+
+
+def tripwire_delta(current, previous):
+    """引信集合的變化：{"new": [...], "cleared": [...], "ongoing": [...]}，值是代號。
+
+    「還亮著」跟「剛亮起來」是兩件事。改成每天掃之後，一根連續亮 30 天的
+    引信會生出 30 則通知與 30 張 issue，講的卻是同一件事——所以通知與開
+    issue 都該看「集合有沒有變」，而不是「集合空不空」。
+
+    沒有上一份快照時，亮著的一律算新的：第一次掃描就靜音比重複吵更糟。
+    """
+    codes = {w["id"]: w.get("code", w["id"]) for w in current.get("tripwires", [])}
+    order = [w["id"] for w in current.get("tripwires", [])]
+    # 引信被改名或從設定裡拿掉時，它仍可能出現在上一份快照裡（於是算「解除」）。
+    for wire in (previous or {}).get("tripwires", []):
+        if wire["id"] not in codes:
+            codes[wire["id"]] = wire.get("code", wire["id"])
+            order.append(wire["id"])
+
+    now = {w["id"] for w in current.get("tripwires", []) if w["state"] is True}
+    before = ({w["id"] for w in previous.get("tripwires", []) if w.get("state") is True}
+              if previous else set())
+
+    def names(ids):
+        return [codes[i] for i in order if i in ids]
+
+    return {"new": names(now - before), "cleared": names(before - now),
+            "ongoing": names(now & before)}
 
 
 def diff_snapshots(current, previous):
