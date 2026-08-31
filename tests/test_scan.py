@@ -228,8 +228,8 @@ class StressScenarioTests(unittest.TestCase):
 
     def test_crowding_reflects_data(self):
         by_title = {c["title"]: c for c in self.snapshot["crowding"]}
-        self.assertEqual(by_title["公債基差交易"]["level"], "press")
-        self.assertEqual(by_title["銀行 AFS／HTM 債券帳"]["level"], "press")
+        self.assertEqual(by_title["公債波動／基差交易脆弱性"]["level"], "press")
+        self.assertEqual(by_title["銀行債券帳壓力（利率代理）"]["level"], "press")
 
     def test_html_well_formed(self):
         with open(os.path.join(self.out_dir, "index.html"), encoding="utf-8") as handle:
