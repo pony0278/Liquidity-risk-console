@@ -12,7 +12,7 @@ __all__ = ["write_history", "CALM", "STRESS"]
 
 
 def _business_days(count, end=None):
-    end = end or date(2026, 7, 31)
+    end = end or date.today()
     days, cursor = [], end
     while len(days) < count:
         if cursor.weekday() < 5:
@@ -22,7 +22,7 @@ def _business_days(count, end=None):
 
 
 def _weekly(count, end=None, weekday=2):
-    end = end or date(2026, 7, 29)
+    end = end or date.today()
     cursor = end
     while cursor.weekday() != weekday:
         cursor -= timedelta(days=1)
@@ -31,7 +31,7 @@ def _weekly(count, end=None, weekday=2):
 
 
 def _monthly(count, end=None):
-    end = end or date(2026, 7, 1)
+    end = end or date.today().replace(day=1)
     days, year, month = [], end.year, end.month
     for _ in range(count):
         days.append(date(year, month, 1))

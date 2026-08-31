@@ -334,6 +334,17 @@ def main(argv=None):
     # 存進快照，重畫時才有得沿用。
     snapshot["changes"] = [list(c) for c in changes]
 
+    # 過期資料已在 evaluate 階段被排除於 Tier／規則之外；這裡再把它升級為
+    # data gap，讓排程器與通知端知道本次判定不完整。
+    for indicator in snapshot["indicators"]:
+        if indicator["hidden"] or not indicator.get("stale"):
+            continue
+        note = "%s 資料過期：最新 %s，已 %s 天" % (
+            indicator["label"], indicator.get("date") or "—",
+            indicator.get("stale_days") if indicator.get("stale_days") is not None else "未知")
+        if note not in data_notes:
+            data_notes.append(note)
+
     # 抓取「成功」但序列是空的（或整個沒有歷史）同樣是缺口。不另外標出來的話，
     # --no-fetch 或來源默默回空值時會得到一份全灰的報表卻回報離開碼 0。
     for indicator in snapshot["indicators"]:
