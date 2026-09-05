@@ -78,12 +78,34 @@ def _eval(node, variables):
         return op(_eval(node.left, variables), _eval(node.right, variables))
 
     if isinstance(node, ast.BoolOp):
-        # and/or 不做短路：任一分支 unknown 就整條 unknown，避免
-        # 「另一半沒資料」被靜靜當成 False。
-        values = [_eval(v, variables) for v in node.values]
+        # 三值邏輯：缺資料不能壓掉另一個已經足以成立／否定的條件。
+        #   True  or Unknown = True
+        #   False or Unknown = Unknown
+        #   False and Unknown = False
+        #   True  and Unknown = Unknown
+        # 這對「VIX > 30 or MOVE > 150」特別重要：MOVE 缺值時，
+        # 已知 VIX > 30 仍必須觸發，而不是整條變成無法判定。
+        unknown = False
         if isinstance(node.op, ast.And):
-            return all(values)
-        return any(values)
+            for child in node.values:
+                try:
+                    if not _eval(child, variables):
+                        return False
+                except _Unknown:
+                    unknown = True
+            if unknown:
+                raise _Unknown("bool-and")
+            return True
+
+        for child in node.values:
+            try:
+                if _eval(child, variables):
+                    return True
+            except _Unknown:
+                unknown = True
+        if unknown:
+            raise _Unknown("bool-or")
+        return False
 
     if isinstance(node, ast.Compare):
         left = _eval(node.left, variables)
