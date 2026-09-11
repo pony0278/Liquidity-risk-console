@@ -105,7 +105,8 @@
           "step": "01 起因",
           "label": "財政供給 ＋ 縮表 ＋ 無前瞻指引",
           "cond": "結構性背景（人工維護）",
-          "default_state": "live"
+          "role": "background",
+          "default_state": "armed"
         },
         {
           "step": "02",
@@ -153,7 +154,8 @@
           "step": "01 觸發器",
           "label": "BOJ 升息或當局干預",
           "cond": "已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157",
-          "default_state": "live",
+          "role": "background",
+          "default_state": "armed",
           "jump": "g-usdjpy"
         },
         {
@@ -308,27 +310,28 @@
     },
     {
       "id": "C",
-      "title": "鏈 C — AI 從股價事件變成信用事件",
-      "note": "目前最被低估的傳導路徑。市場把 AI 當純上漲題材，真正的風險在融資層——它不會只是某檔晶片股跌幾趴，而是變成 Tier 2 信用事件，那才會真正擴散。關鍵背離：亞洲半導體在打崩盤級的架，而 HY OAS 仍在低檔，就證明它仍關在產業籠子裡。",
+      "title": "鏈 C — 科技股壓力是否擴散至廣泛信用",
+      "note": "這條鏈檢查科技股價格壓力是否擴散成全市場信用事件。IG、CCC、HY 都是廣泛市場指數，不能證明壓力源自 AI；它們只能作為『壓力已離開科技股、進入信用層』的確認訊號。",
       "nodes": [
         {
           "step": "01 起因",
-          "label": "AI capex 以舉債支應",
+          "label": "AI capex 與科技估值壓力背景",
           "cond": "結構性背景（人工維護）",
-          "default_state": "live"
+          "role": "background",
+          "default_state": "armed"
         },
         {
           "step": "02",
-          "label": "科技／超大規模業者利差跑輸",
+          "label": "廣泛 IG 信用條件開始惡化",
           "cond": "觸發條件：IG OAS 20 日擴張 > 10bps",
           "expr": "ig_oas_d20 > 10",
           "jump": "g-ig_oas"
         },
         {
           "step": "03",
-          "label": "CCC／科技利差擴張",
-          "cond": "觸發條件：CCC OAS > 900bps 或 20 日擴張 > 50bps",
-          "expr": "ccc_oas > 900 or ccc_oas_d20 > 50",
+          "label": "CCC 底層信用壓力升高",
+          "cond": "觸發條件：CCC OAS > 1100bps 或 20 日擴張 > 50bps",
+          "expr": "ccc_oas > 1100 or ccc_oas_d20 > 50",
           "jump": "g-ccc_oas"
         },
         {
@@ -340,7 +343,7 @@
         },
         {
           "step": "05",
-          "label": "私募信用／BDC 壓力",
+          "label": "低品質信用分化擴大",
           "cond": "觸發條件：HY − IG 差 > 400bps",
           "expr": "hy_ig > 400",
           "jump": "g-hy_ig"
@@ -356,13 +359,14 @@
     {
       "id": "D",
       "title": "鏈 D — 縮表 → 準備金 → 水管",
-      "note": "這是唯一一條會直接走進 Tier 1 的鏈，也是唯一能讓「資金水管」從綠轉黃的機制。緩衝墊（ON RRP）一旦歸零，縮表接下來會直接咬進準備金。這條鏈與鏈 A 的節點 01 共用同一個起因，兩者會互相加強。",
+      "note": "這是唯一直接走進 Tier 1 的鏈。ON RRP 接近零只代表緩衝墊已薄、鏈條進入背景脆弱狀態；必須等準備金下降與 SOFR／SRF 等後續節點依序成立，才算資金壓力正在傳導。",
       "nodes": [
         {
           "step": "01 起因",
           "label": "縮表持續 ／ 減持長天期公債",
           "cond": "政策背景（人工維護）",
-          "default_state": "live"
+          "role": "background",
+          "default_state": "armed"
         },
         {
           "step": "02",
@@ -397,7 +401,7 @@
   ],
   "crowding": [
     {
-      "title": "AI／半導體估值 ＋ 債務融資",
+      "title": "AI／半導體價格壓力",
       "state_expr": "sox_dd60 <= -10",
       "state_true": {
         "level": "press",
@@ -407,7 +411,7 @@
         "level": "watch",
         "text": "引信累積中"
       },
-      "density": "超大規模業者 capex 以發債支應；信用利差已開始跑輸大盤。",
+      "density": "SOX 回撤代表價格與估值壓力；只有 IG／HY 同步惡化，才能確認已擴散到信用層。",
       "trigger": "guidance 不再上調；中國 DUV 微影機進展；單一名字失望。",
       "live_readout": "SOX 自 60 日高點 %.1f%% · Nasdaq 100 %.1f%%",
       "live_vars": [
@@ -435,7 +439,7 @@
       ]
     },
     {
-      "title": "公債基差交易",
+      "title": "公債波動／基差交易脆弱性",
       "state_expr": "move > 120",
       "state_true": {
         "level": "press",
@@ -445,7 +449,7 @@
         "level": "watch",
         "text": "需留意"
       },
-      "density": "對沖基金高槓桿的長債多基差部位。現代版的英國 LDI。",
+      "density": "MOVE 只量債市波動，不直接量基差部位規模；這裡顯示的是可能壓迫高槓桿交易的市場環境。",
       "trigger": "長端續噴 → 追繳保證金 → 被迫拋售長債 → 螺旋。",
       "live_readout": "MOVE %.1f · 30Y %.2f%%",
       "live_vars": [
@@ -454,7 +458,7 @@
       ]
     },
     {
-      "title": "銀行 AFS／HTM 債券帳",
+      "title": "銀行債券帳壓力（利率代理）",
       "state_expr": "y30 >= 5.2",
       "state_true": {
         "level": "press",
@@ -464,7 +468,7 @@
         "level": "watch",
         "text": "需留意"
       },
-      "density": "長天期債券未實現虧損隨 30Y 上升擴大。2023 SVB 的完整機制。",
+      "density": "30Y 只代理長天期債券的估值壓力；未直接量到銀行實際未實現損失、存款流失或避險部位。",
       "trigger": "30Y 站穩 5.2% 以上並黏著；區域銀行存款外流。",
       "live_readout": "30Y %.2f%% · 20 日 %+.0fbps",
       "live_vars": [
@@ -491,18 +495,18 @@
       ]
     },
     {
-      "title": "私募信用／BDC",
+      "title": "廣泛低評級信用",
       "state_expr": "hy_ig > 300",
       "state_true": {
         "level": "watch",
-        "text": "分化擴大"
+        "text": "低評級分化擴大"
       },
       "state_false": {
         "level": "ok",
-        "text": "早期分化"
+        "text": "尚未明顯分化"
       },
-      "density": "贖回隊伍變長；AI 取代 SaaS 的敘事已寫進部分公司的前瞻指引。",
-      "trigger": "再融資窗口；AI 供給潮推升整體信用利差。",
+      "density": "HY−IG 與 CCC 只能反映公開市場低評級信用，不能直接代表私募信用或 BDC。",
+      "trigger": "HY−IG 與 CCC 同步擴張，表示壓力從個別產業走向廣泛低評級信用。",
       "live_readout": "HY − IG %.0fbps · CCC %.0fbps",
       "live_vars": [
         "hy_ig",
