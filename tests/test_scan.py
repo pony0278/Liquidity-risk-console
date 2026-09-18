@@ -83,6 +83,8 @@ class ExprTests(unittest.TestCase):
         self.assertIsNone(evaluate("a > 3", {"a": None}))
         self.assertIsNone(evaluate("a > 3 or b > 3", {"a": 1}))
         self.assertIsNone(evaluate("a > 3 and b > 3", {"a": 99, "b": None}))
+        self.assertIs(evaluate("a > 3 or b > 3", {"a": 99, "b": None}), True)
+        self.assertIs(evaluate("a > 3 and b > 3", {"a": 1, "b": None}), False)
 
     def test_rejects_dangerous_syntax(self):
         for bad in ("__import__('os').system('ls')", "open('x')", "[1,2,3]", "a.b"):
@@ -215,7 +217,8 @@ class StressScenarioTests(unittest.TestCase):
     def test_sofr_streak_drives_funding_chain(self):
         by_id = {c["id"]: c for c in self.snapshot["chains"]}
         chain_d = by_id["D"]
-        self.assertEqual(chain_d["live"], 5, "縮表→水管鏈應該全線點亮")
+        self.assertEqual(chain_d["live"], 4, "背景節點不計入進度，四個動態節點應全線點亮")
+        self.assertEqual(chain_d["total"], 4)
         self.assertEqual(chain_d["state"], "CRITICAL")
 
     def test_carry_chain_starts_moving(self):
@@ -225,8 +228,8 @@ class StressScenarioTests(unittest.TestCase):
 
     def test_crowding_reflects_data(self):
         by_title = {c["title"]: c for c in self.snapshot["crowding"]}
-        self.assertEqual(by_title["公債基差交易"]["level"], "press")
-        self.assertEqual(by_title["銀行 AFS／HTM 債券帳"]["level"], "press")
+        self.assertEqual(by_title["公債波動／基差交易脆弱性"]["level"], "press")
+        self.assertEqual(by_title["銀行債券帳壓力（利率代理）"]["level"], "press")
 
     def test_html_well_formed(self):
         with open(os.path.join(self.out_dir, "index.html"), encoding="utf-8") as handle:
@@ -235,6 +238,28 @@ class StressScenarioTests(unittest.TestCase):
         validator.feed(html_text)
         self.assertEqual(validator.errors, [])
         self.assertIn("已觸發", html_text)
+
+
+class ChainSequenceTests(unittest.TestCase):
+    def test_out_of_order_signal_is_armed_not_progress(self):
+        """CCC 先升、IG 尚未惡化時，只能算旁證，不能跳過節點推進 AI 信用鏈。"""
+        scenario = {
+            "daily": dict(CALM["daily"]),
+            "weekly": dict(CALM["weekly"]),
+            "monthly": dict(CALM["monthly"]),
+        }
+        scenario["daily"]["ccc_oas"] = lambda i, n: 1150.0
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, _ = run_scan(tmp, scenario)
+            chain = next(c for c in snapshot["chains"] if c["id"] == "C")
+            by_label = {n["label"]: n for n in chain["nodes"]}
+            self.assertEqual(chain["live"], 0)
+            self.assertEqual(chain["state"], "ARMED")
+            self.assertEqual(by_label["廣泛 IG 信用條件開始惡化"]["state"], "cold")
+            self.assertEqual(by_label["CCC 底層信用壓力升高"]["state"], "armed")
+        finally:
+            shutil.rmtree(tmp)
 
 
 class DiffTests(unittest.TestCase):
@@ -768,7 +793,7 @@ class StaleTests(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write("\n".join(kept) + "\n")
 
-            scan.main([
+            code = scan.main([
                 "--config-dir", os.path.join(BASE_DIR, "config"),
                 "--data-dir", data_dir, "--out-dir", os.path.join(tmp, "reports"),
                 "--no-fetch", "--notify", "never", "--quiet",
@@ -777,6 +802,10 @@ class StaleTests(unittest.TestCase):
                 snapshot = json.load(handle)
             vix = next(i for i in snapshot["indicators"] if i["key"] == "vix")
             self.assertTrue(vix["stale"], "日頻停在 40 天前應該要被標出來")
+            self.assertEqual(vix["status"], "unknown", "過期值不能繼續顯示正常燈")
+            self.assertEqual(code, scan.EXIT_DATA_GAP, "過期資料必須讓排程器知道判定有缺口")
+            vol = next(w for w in snapshot["tripwires"] if w["id"] == "vol_regime")
+            self.assertIsNone(vol["state"], "過期 VIX 不得繼續參與引信判定")
         finally:
             shutil.rmtree(tmp)
 
@@ -994,6 +1023,10 @@ class WorkflowTests(unittest.TestCase):
     def test_delta_step_is_skipped_when_the_scan_did_not_run(self):
         """間隔沒到時 reports/latest.json 是上一次的，不能拿來判斷「新引信」。"""
         self.assertIn("steps.scan.outputs.ran == '1'", self.text)
+
+    def test_full_unit_suite_runs_in_ci(self):
+        self.assertIn("python3 -m unittest discover -s tests -v", self.text)
+        self.assertIn("pull_request:", self.text)
 
 
 if __name__ == "__main__":
