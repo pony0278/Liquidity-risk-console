@@ -299,6 +299,11 @@ def _assess_indicator(indicator, series_map, metrics, notes):
     # 頁面的來源欄給讀者看。
     stale_limit = stale_limit_for_indicator(indicator)
     is_stale = stale_days is not None and stale_days > stale_limit
+    if is_stale:
+        # 過期不只是視覺徽章：若仍保留原本的 ok／press，Tier 與規則就會
+        # 繼續把舊值當成今天的證據。數值仍顯示供人工參考，但機器判定必須 unknown。
+        status, label = "unknown", "資料過期"
+        basis = "資料過期"
 
     note = notes.get(key, {})
     return {
@@ -338,6 +343,37 @@ def _assess_indicator(indicator, series_map, metrics, notes):
         "fetch_detail": note.get("detail", ""),
         "fetch_provider": note.get("provider"),
     }
+
+
+def _mask_stale_metrics(metrics, indicator_cfg, indicators):
+    """把過期指標及其衍生指標從規則變數表移除（設成 None）。
+
+    衍生序列的日期通常會跟著最舊成分走，但不能只賭日期剛好暴露問題；
+    這裡沿 derived／derived_diff 相依關係向下傳播，確保任何依賴過期成分
+    的規則都回傳 unknown。
+    """
+    stale_keys = {i["key"] for i in indicators if i.get("stale")}
+    changed = True
+    while changed:
+        changed = False
+        for indicator in indicator_cfg:
+            key = indicator["key"]
+            if key in stale_keys:
+                continue
+            deps = set()
+            if indicator.get("derived"):
+                deps = referenced_names(indicator["derived"])
+            elif indicator.get("derived_diff"):
+                deps = {indicator["derived_diff"]}
+            if deps & stale_keys:
+                stale_keys.add(key)
+                changed = True
+
+    masked = dict(metrics)
+    for name in list(masked):
+        if any(name == key or name.startswith(key + "_") for key in stale_keys):
+            masked[name] = None
+    return masked
 
 
 def _format_readout(template, var_names, metrics):
@@ -430,6 +466,7 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
 
     indicators = [_assess_indicator(i, series_map, metrics, notes) for i in indicator_cfg]
     by_key = {i["key"]: i for i in indicators}
+    rule_metrics = _mask_stale_metrics(metrics, indicator_cfg, indicators)
 
     tiers = {}
     for tier in rules_cfg.get("_tiers", []) or []:
@@ -465,7 +502,7 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
 
     tripwires = []
     for wire in rules_cfg.get("tripwires", []):
-        state = evaluate(wire["expr"], metrics)
+        state = evaluate(wire["expr"], rule_metrics)
         tripwires.append({
             "id": wire["id"],
             "group": wire.get("group", ""),
@@ -479,13 +516,13 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
     ladder = []
     current_level = 1
     for rung in rules_cfg.get("ladder", []):
-        state = evaluate(rung.get("expr"), metrics)
+        state = evaluate(rung.get("expr"), rule_metrics)
         entry = {
             "level": rung["level"],
             "title": rung["title"],
             "signal": rung.get("signal", ""),
             "state": state,
-            "readout": _format_readout(rung.get("readout"), rung.get("readout_vars", []), metrics),
+            "readout": _format_readout(rung.get("readout"), rung.get("readout_vars", []), rule_metrics),
         }
         ladder.append(entry)
         if state is True:
@@ -495,51 +532,85 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
 
     chains = []
     for chain in rules_cfg.get("chains", []):
-        nodes = []
-        live_count = 0
+        raw_nodes = []
         for index, node in enumerate(chain["nodes"], start=1):
-            if node.get("expr"):
-                state = evaluate(node["expr"], metrics)
-                node_state = "live" if state is True else ("unknown" if state is None else "cold")
+            role = node.get("role", "signal")
+            if role == "background":
+                raw_state = node.get("default_state", "armed")
+            elif node.get("expr"):
+                state = evaluate(node["expr"], rule_metrics)
+                raw_state = "live" if state is True else ("unknown" if state is None else "cold")
             else:
-                node_state = node.get("default_state", "cold")
-            if node_state == "live":
-                live_count += 1
-            nodes.append({
+                raw_state = node.get("default_state", "cold")
+            raw_nodes.append({
                 "step": node.get("step", "%02d" % index),
                 "label": node["label"],
                 "cond": node.get("cond", ""),
                 "jump": node.get("jump"),
-                "state": node_state,
+                "role": role,
+                "raw_state": raw_state,
             })
-        armed = any(n["state"] == "armed" for n in nodes)
-        if live_count >= len(nodes) - 1:
+
+        # 傳導鏈必須依序成立。後段訊號若在前段尚未成立時先出現，只能算
+        # ARMED（旁證），不能跳著計入進度。背景節點也不計入分母。
+        nodes = []
+        blocked = False
+        live_count = 0
+        dynamic_total = 0
+        background_count = 0
+        signal_armed_count = 0
+        for raw_node in raw_nodes:
+            role = raw_node["role"]
+            raw_state = raw_node.pop("raw_state")
+            if role == "background":
+                background_count += 1
+                node_state = "armed" if raw_state in ("live", "armed") else raw_state
+            else:
+                dynamic_total += 1
+                if blocked:
+                    node_state = "armed" if raw_state == "live" else raw_state
+                elif raw_state == "live":
+                    node_state = "live"
+                    live_count += 1
+                else:
+                    node_state = raw_state
+                    blocked = True
+                if node_state == "armed":
+                    signal_armed_count += 1
+            raw_node["state"] = node_state
+            nodes.append(raw_node)
+
+        if dynamic_total and live_count == dynamic_total:
             chain_state, chain_status = "CRITICAL", "alarm"
-        elif live_count >= 3:
-            chain_state, chain_status = "ACTIVE", "press"
-        elif live_count >= 1:
-            chain_state, chain_status = "ACTIVE", "press" if live_count >= 2 else "watch"
-        elif armed:
+        elif live_count >= 2:
+            chain_state, chain_status = "PROPAGATING", "press"
+        elif live_count == 1:
+            chain_state, chain_status = "ACTIVE", "watch"
+        elif signal_armed_count:
             chain_state, chain_status = "ARMED", "watch"
+        elif background_count:
+            chain_state, chain_status = "BACKGROUND", "ok"
         else:
             chain_state, chain_status = "COLD", "ok"
+
         chains.append({
             "id": chain["id"],
             "title": chain["title"],
             "note": chain.get("note", ""),
-            # 歷史先例：這條鏈實際走完時的形狀。重點不是跌幅，是各個節點
-            # 出現的順序——「日圓在第幾幕」決定它是領先訊號還是落後訊號。
             "precedents": chain.get("precedents", []),
             "nodes": nodes,
             "live": live_count,
-            "total": len(nodes),
+            "total": dynamic_total,
+            "armed": signal_armed_count,
+            "background": background_count,
+            "evidence": live_count + signal_armed_count,
             "state": chain_state,
             "status": chain_status,
         })
 
     crowding = []
     for card in rules_cfg.get("crowding", []):
-        state = evaluate(card.get("state_expr"), metrics)
+        state = evaluate(card.get("state_expr"), rule_metrics)
         chosen = card.get("state_true" if state else "state_false", {})
         if state is None:
             chosen = {"level": "unknown", "text": "資料不足"}
@@ -549,11 +620,11 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
             "state_text": chosen.get("text", ""),
             "density": card.get("density", ""),
             "trigger": card.get("trigger", ""),
-            "readout": _format_readout(card.get("live_readout"), card.get("live_vars", []), metrics),
+            "readout": _format_readout(card.get("live_readout"), card.get("live_vars", []), rule_metrics),
         })
 
     ladder_titles = {r["level"]: r["title"] for r in rules_cfg.get("ladder", [])}
-    verdict = _verdict(current_level, ladder_titles, tier_summary, by_key, fired, metrics)
+    verdict = _verdict(current_level, ladder_titles, tier_summary, by_key, fired, rule_metrics)
 
     overall = "ok"
     for info in tier_summary.values():
