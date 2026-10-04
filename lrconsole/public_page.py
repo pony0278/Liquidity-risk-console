@@ -234,6 +234,7 @@ section{padding-top:46px}
 .pips{display:flex;gap:3px;margin:11px 0 9px}
 .pips span{flex:1;height:7px;background:var(--rule)}
 .pips span.on{background:var(--press)}
+.pips span.armed{background:var(--watch)}
 .chain .nx{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
 .chain .nx b{color:var(--ink);font-weight:700}
 
@@ -548,10 +549,15 @@ _JS = r"""
 
   function renderChains(snap) {
     el("chains").innerHTML = (snap.chains || []).map(function (c) {
-      var pips = (c.nodes || []).map(function (nd) {
-        return '<span class="' + (nd.state === "live" ? "on" : "") + '" title="' + esc(nd.label) + '"></span>';
+      var pips = (c.nodes || []).filter(function (nd) {
+        return nd.role !== "background";
+      }).map(function (nd) {
+        var tone = nd.state === "live" ? "on" : (nd.state === "armed" ? "armed" : "");
+        return '<span class="' + tone + '" title="' + esc(nd.label) + '"></span>';
       }).join("");
-      var next = (c.nodes || []).filter(function (nd) { return nd.state !== "live"; })[0];
+      var next = (c.nodes || []).filter(function (nd) {
+        return nd.role !== "background" && nd.state !== "live";
+      })[0];
       return '<div class="chain"><div class="hd">'
         + "<h3>" + esc(c.title) + "</h3>"
         + '<span class="cnt">' + c.live + " / " + c.total + " 節點</span></div>"

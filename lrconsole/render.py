@@ -449,7 +449,8 @@ def _footer(snapshot):
 
     watch = []
     for chain in snapshot["chains"]:
-        nxt = next((n for n in chain["nodes"] if n["state"] != "live"), None)
+        nxt = next((n for n in chain["nodes"]
+                    if n.get("role") != "background" and n["state"] != "live"), None)
         if nxt:
             watch.append("<li>%s 的下一個節點：%s（%s）</li>"
                          % (_esc(chain["title"].split("—")[0].strip()),

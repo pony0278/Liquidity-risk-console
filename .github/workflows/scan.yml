@@ -16,14 +16,26 @@ on:
         description: "忽略掃描間隔，立刻掃一次"
         type: boolean
         default: true
-  # 改模板／規則時只重新發佈頁面，不重新抓資料。
+  pull_request:
+    branches: [main]
+    paths:
+      - "lrconsole/**"
+      - "templates/**"
+      - "config/**"
+      - "tests/**"
+      - "scan.py"
+      - "README.md"
+      - ".github/workflows/scan.yml"
+  # 改模板／規則時先跑完整測試；合併 main 後只重新發佈，不重新抓資料。
   push:
     branches: [main]
     paths:
       - "lrconsole/**"
       - "templates/**"
       - "config/**"
+      - "tests/**"
       - "scan.py"
+      - "README.md"
       - ".github/workflows/scan.yml"
 
 permissions:
@@ -37,9 +49,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: 設定檔自我檢查
+        run: python3 scan.py --self-test
+      - name: 完整離線測試
+        run: python3 -m unittest discover -s tests -v
+
   scan:
+    needs: test
     # push 事件只是改了模板，沒必要重抓一次資料。
-    if: github.event_name != 'push'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.test.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -133,8 +161,8 @@ jobs:
   publish:
     # 掃描完（或改完模板）就把 reports/ 發佈到 GitHub Pages。
     # always()：push 事件時 scan 會被跳過，這裡仍要發佈。
-    needs: scan
-    if: always() && needs.scan.result != 'failure'
+    needs: [test, scan]
+    if: always() && github.event_name != 'pull_request' && needs.test.result == 'success' && needs.scan.result != 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
