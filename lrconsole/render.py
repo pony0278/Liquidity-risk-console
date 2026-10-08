@@ -555,6 +555,7 @@ def render_html(snapshot, changes, series=None):
         '<!DOCTYPE html>\n<html lang="zh-Hant">\n<head>\n'
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '<meta name="theme-color" content="#0B0E13">\n'
         '<title>系統壓力盤 — 流動性與尾部風險監測 %s</title>\n'
         '<style>\n%s\n</style>\n</head>\n<body>\n<div class="sheet">\n\n%s\n\n</div>\n'
         '<script>%s</script>\n</body>\n</html>\n'

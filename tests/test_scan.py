@@ -1206,5 +1206,54 @@ class LadderDisplayTests(unittest.TestCase):
         self.assertIn("距下一階", self.summary)
 
 
+class DarkThemeTests(unittest.TestCase):
+    """深色主題：顏色全部集中在 :root，兩份樣式表數值一致，字色都讀得到。"""
+
+    import re as _re
+    COLOR = _re.compile(r"#[0-9A-Fa-f]{3,6}\b|rgba?\([^)]*\)")
+
+    @classmethod
+    def setUpClass(cls):
+        from lrconsole import public_page
+        with open(os.path.join(BASE_DIR, "templates", "console.css"), encoding="utf-8") as handle:
+            cls.sheets = {"console.css": handle.read(), "public _CSS": public_page._CSS}
+
+    @staticmethod
+    def _root(css):
+        start = css.index(":root{")
+        return css[start:css.index("}", start)]
+
+    def _tokens(self, css):
+        import re
+        return dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", self._root(css)))
+
+    def test_no_colors_outside_root(self):
+        """寫死在規則裡的顏色是換主題時一定會漏掉的那個——淺色時代的
+        rgba(255,255,255,.85) 在深色底上就是一塊刺眼的白。"""
+        for name, css in self.sheets.items():
+            rest = css[css.index("}", css.index(":root{")):]
+            self.assertEqual(self.COLOR.findall(rest), [], name)
+
+    def test_both_sheets_share_the_same_palette(self):
+        public, console = (self._tokens(self.sheets[n]) for n in ("public _CSS", "console.css"))
+        for key in ("paper", "ink", "ink-soft", "ink-faint", "rule", "ok", "watch", "press", "alarm",
+                    "dead"):
+            self.assertEqual(public[key].upper(), console[key].upper(), "--%s 兩邊不一致" % key)
+
+    def test_every_text_color_is_readable_on_the_background(self):
+        def lum(hexcolor):
+            h = hexcolor.lstrip("#")
+            c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+            c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+            return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+        tokens = self._tokens(self.sheets["public _CSS"])
+        paper = lum(tokens["paper"])
+        self.assertLess(paper, 0.01, "背景要是黑的")
+        for key in ("ink", "ink-soft", "ink-faint", "dead", "ok", "watch", "press", "alarm"):
+            ratio = (lum(tokens[key]) + 0.05) / (paper + 0.05)
+            self.assertGreaterEqual(ratio, 4.5, "--%s 對底色只有 %.2f:1" % (key, ratio))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

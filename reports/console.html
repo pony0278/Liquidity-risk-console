@@ -3,35 +3,48 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0E13">
 <title>系統壓力盤 — 流動性與尾部風險監測 2026-10-08</title>
 <style>
+/* 深色主題，與公開版同一組值（lrconsole/public_page.py 的 _CSS）。所有顏色
+   都在這一塊，下面的規則只用變數——包括半透明的底色。四個狀態色是用 dataviz
+   驗證腳本挑的：相鄰兩級在紅綠色盲下最小 ΔE 11.4，紅色對比 5.42:1。 */
 :root{
-  --paper:#E4E8EF;
-  --paper-2:#DBE0E9;
-  --ink:#1B2A41;
-  --ink-soft:#5A6B85;
-  --ink-faint:#8695AB;
-  --rule:#B4BFD0;
-  --rule-hard:#8C9AB0;
+  color-scheme:dark;
+  --paper:#0B0E13;
+  --paper-2:#1B212B;
+  --ink:#E6EAF0;
+  --ink-soft:#A3AEBF;
+  --ink-faint:#7C889A;
+  --rule:#252C37;
+  --rule-hard:#3A4452;
 
-  --ok:#2E6E4F;
-  --watch:#9E6F1E;
-  --press:#B04E1E;
-  --alarm:#96241F;
-  --dead:#9AA6B8;
+  --ok:#4C9F72;
+  --watch:#F7CF55;
+  --press:#EE8536;
+  --alarm:#E95078;
+  --dead:#7A8494;
+
+  --grid:rgba(255,255,255,.028);
+  --hover:rgba(255,255,255,.04);
+  --node-bg:rgba(255,255,255,.03);
+  --node-hover:rgba(255,255,255,.08);
+  --tint-watch:rgba(247,207,85,.10);
+  --tint-press:rgba(238,133,54,.13);
+  --tint-alarm:rgba(233,80,120,.12);
 
   --mono: ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans TC",system-ui,sans-serif;
 }
 
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;background:var(--paper)}
 body{
   margin:0;
   background:var(--paper);
   background-image:
-    repeating-linear-gradient(0deg,transparent 0 39px,rgba(27,42,65,.045) 39px 40px),
-    repeating-linear-gradient(90deg,transparent 0 39px,rgba(27,42,65,.045) 39px 40px);
+    repeating-linear-gradient(0deg,transparent 0 39px,var(--grid) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,var(--grid) 39px 40px);
   color:var(--ink);
   font-family:var(--sans);
   font-size:15px;
@@ -176,9 +189,9 @@ td.th{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height
 td.st{white-space:nowrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;font-weight:600}
 td.src{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
 td.note{font-size:12.5px;color:var(--ink-soft);min-width:190px}
-tbody tr:hover td{background:rgba(27,42,65,.035)}
+tbody tr:hover td{background:var(--hover)}
 tbody tr.tier:hover td{background:var(--paper-2)}
-tr.hl td{background:rgba(176,78,30,.10)!important;box-shadow:inset 2px 0 0 var(--press)}
+tr.hl td{background:var(--tint-press)!important;box-shadow:inset 2px 0 0 var(--press)}
 
 /* ---------- SIGNATURE: transmission chains ---------- */
 .chains{border-top:1px solid var(--rule)}
@@ -192,14 +205,14 @@ tr.hl td{background:rgba(176,78,30,.10)!important;box-shadow:inset 2px 0 0 var(-
 .node{
   flex:1 1 0;min-width:150px;
   border:1px solid var(--rule-hard);
-  background:rgba(255,255,255,.42);
+  background:var(--node-bg);
   padding:10px 12px 12px;
   position:relative;
   cursor:default;
   transition:background .18s ease, border-color .18s ease;
 }
 .node[data-jump]{cursor:pointer}
-.node[data-jump]:hover,.node[data-jump]:focus-visible{background:rgba(255,255,255,.85);border-color:var(--ink);outline:none}
+.node[data-jump]:hover,.node[data-jump]:focus-visible{background:var(--node-hover);border-color:var(--ink);outline:none}
 .node+.node{margin-left:14px}
 .node+.node::before{
   content:"";position:absolute;left:-15px;top:50%;width:15px;height:1px;background:var(--rule-hard);
@@ -212,17 +225,17 @@ tr.hl td{background:rgba(176,78,30,.10)!important;box-shadow:inset 2px 0 0 var(-
 .node .lbl{display:block;font-size:13.5px;line-height:1.4;margin-top:5px;font-weight:600}
 .node .cond{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:6px;line-height:1.45}
 
-.node.live{background:rgba(176,78,30,.11);border-color:var(--press)}
+.node.live{background:var(--tint-press);border-color:var(--press)}
 .node.live .step{color:var(--press)}
 .node.live::marker{content:none}
-.node.armed{background:rgba(158,111,30,.09);border-color:var(--watch)}
+.node.armed{background:var(--tint-watch);border-color:var(--watch)}
 .node.armed .step{color:var(--watch)}
 .node.cold{border-style:dashed;border-color:var(--rule);background:transparent}
 .node.cold .lbl{color:var(--ink-soft);font-weight:600}
 .node .flag{
   position:absolute;top:-1px;right:-1px;
   font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;font-weight:700;
-  padding:2px 5px 1px;color:#fff;
+  padding:2px 5px 1px;color:var(--paper);
 }
 .node.live .flag{background:var(--press)}
 .node.armed .flag{background:var(--watch)}
@@ -244,7 +257,7 @@ tr.hl td{background:rgba(176,78,30,.10)!important;box-shadow:inset 2px 0 0 var(-
 .rung h4{margin:0;font-size:15.5px;font-weight:700}
 .rung .sig{font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.5}
 .rung .rd{font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:600;white-space:nowrap;text-align:right}
-.rung.here{background:rgba(176,78,30,.10);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
+.rung.here{background:var(--tint-press);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
 .rung.here .lv{color:var(--press)}
 /* 離觸發還有多遠：左端＝平常，右端紅線＝觸發 */
 .nbar{position:relative;display:block;width:120px;height:5px;background:var(--paper-2);margin:7px 0 0 auto}
@@ -305,7 +318,7 @@ footer code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
 .node.unknown{border-style:dashed;border-color:var(--dead);background:transparent}
 .node.unknown .lbl{color:var(--ink-faint)}
 .node.unknown .flag{background:var(--dead)}
-.wire.fired{background:rgba(150,36,31,.09);box-shadow:inset 3px 0 0 var(--alarm)}
+.wire.fired{background:var(--tint-alarm);box-shadow:inset 3px 0 0 var(--alarm)}
 .wire.unknown code{color:var(--dead)}
 .wire .st{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;display:block;margin-bottom:2px}
 .changes{border-top:1px solid var(--rule)}
@@ -338,7 +351,7 @@ td.dt{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-spac
   color:var(--ink-faint);white-space:nowrap}
 .pstep .pd{font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap}
 /* 日圓那一格是整段的重點——它在第幾幕決定它是領先還是落後訊號 */
-.pstep.k-yen{background:rgba(176,78,30,.11);box-shadow:inset 2px 0 0 var(--press);
+.pstep.k-yen{background:var(--tint-press);box-shadow:inset 2px 0 0 var(--press);
   padding-left:8px;margin-left:-8px}
 .pstep.k-yen .pk,.pstep.k-yen .pw{color:var(--press)}
 .pstep.k-yen .pl{font-weight:700}

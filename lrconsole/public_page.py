@@ -8,9 +8,13 @@
 瀏覽器快取了 HTML，看到的仍是最新一次掃描。fetch 失敗（例如用 file://
 開啟）就退回建置時內嵌的那份，頁面永遠不會空白。
 
-嚴重度用 1–4 格的方塊表示，不是只靠顏色——警示（琥珀 #9E6F1E）與明確壓力
-（橘 #B04E1E）在紅綠色盲下的 ΔE 只有 3.0，等於同一個顏色。顏色只做強化，
-格數與文字標籤才是真正在傳遞嚴重度的通道。
+嚴重度用 1–4 格的方塊表示，不是只靠顏色。顏色只做強化，格數與文字標籤
+才是真正在傳遞嚴重度的通道。
+
+深色底的四個狀態色是用 dataviz 驗證腳本挑的，不是目測：底色 #0B0E13 上，
+相鄰兩級在紅綠色盲下最小 ΔE 11.4（正常視覺 15.3），紅色對比 5.42:1，小字也
+夠。最難分的是橘（明確壓力）與紅（警報）——紅色因此往洋紅偏，讓它在色盲
+模擬下往藍灰走、跟橘拉開，而不是只靠明度差。
 """
 
 import html
@@ -48,22 +52,28 @@ def build_series_payload(series_map, keys=None, points=180):
 
 
 _CSS = """
+/* 深色主題。所有顏色都在這裡，下面的規則只用變數——連半透明的底色也是，
+   換主題只要改這一塊。 */
 :root{
-  --paper:#E4E8EF; --paper-2:#DBE0E9; --card:#EDF0F5;
-  --ink:#1B2A41; --ink-soft:#5A6B85; --ink-faint:#8695AB;
-  --rule:#B4BFD0; --rule-hard:#8C9AB0;
-  --ok:#2E6E4F; --watch:#9E6F1E; --press:#B04E1E; --alarm:#96241F; --dead:#9AA6B8;
+  color-scheme:dark;
+  --paper:#0B0E13; --paper-2:#1B212B; --card:#12161D;
+  --ink:#E6EAF0; --ink-soft:#A3AEBF; --ink-faint:#7C889A;
+  --rule:#252C37; --rule-hard:#3A4452;
+  --ok:#4C9F72; --watch:#F7CF55; --press:#EE8536; --alarm:#E95078; --dead:#7A8494;
+  --grid:rgba(255,255,255,.028);
+  --tint-watch:rgba(247,207,85,.10); --tint-press:rgba(238,133,54,.13);
+  --tint-alarm:rgba(233,80,120,.12);
   --mono: ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans TC",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;background:var(--paper)}
 body{
   margin:0;background:var(--paper);color:var(--ink);
   font-family:var(--sans);font-size:16px;line-height:1.65;
   background-image:
-    repeating-linear-gradient(0deg,transparent 0 39px,rgba(27,42,65,.04) 39px 40px),
-    repeating-linear-gradient(90deg,transparent 0 39px,rgba(27,42,65,.04) 39px 40px);
+    repeating-linear-gradient(0deg,transparent 0 39px,var(--grid) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,var(--grid) 39px 40px);
 }
 .wrap{max-width:1080px;margin:0 auto;padding:0 20px 90px}
 .anno{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
@@ -199,7 +209,7 @@ section{padding-top:46px}
 .alerts{display:grid;gap:0;border-top:1px solid var(--rule)}
 .alert{padding:16px 0 18px;border-bottom:1px solid var(--rule);
   display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start}
-.alert.fired{background:rgba(150,36,31,.07);box-shadow:inset 3px 0 0 var(--alarm);
+.alert.fired{background:var(--tint-alarm);box-shadow:inset 3px 0 0 var(--alarm);
   padding-left:14px}
 .alert .badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;font-weight:700;
   text-transform:uppercase;border:1px solid currentColor;padding:3px 7px 2px;white-space:nowrap}
@@ -232,7 +242,7 @@ section{padding-top:46px}
 .spark .hit{fill:transparent;cursor:crosshair}
 .spark .cross{stroke:var(--rule-hard);stroke-width:1;stroke-dasharray:2 2;visibility:hidden}
 .spark .cursor{visibility:hidden;stroke:var(--paper);stroke-width:1.5}
-.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);
   font-family:var(--mono);font-size:11px;padding:4px 7px;white-space:nowrap;
   transform:translate(-50%,-100%);opacity:0;transition:opacity .1s;z-index:5}
 
@@ -255,7 +265,7 @@ section{padding-top:46px}
 .rung h3{margin:0;font-size:15.5px;font-weight:700}
 .rung .sig{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:3px}
 .rung .rd{font-family:var(--mono);font-size:11.5px;font-weight:600;text-align:right;white-space:nowrap}
-.rung.here{background:rgba(176,78,30,.10);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
+.rung.here{background:var(--tint-press);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
 .rung.here .n{color:var(--press)}
 
 /* ---------- 傳導鏈 ---------- */
@@ -290,7 +300,7 @@ section{padding-top:46px}
 .pstep{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px;padding:6px 0;
   border-bottom:1px solid var(--rule);font-size:12px;line-height:1.45}
 .pstep .pw{font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap}
-.pstep.k-yen{background:rgba(176,78,30,.11);box-shadow:inset 2px 0 0 var(--press);
+.pstep.k-yen{background:var(--tint-press);box-shadow:inset 2px 0 0 var(--press);
   padding-left:7px;margin-left:-7px}
 .pstep.k-yen .pl{font-weight:700}
 .pstep.k-yen .pw{color:var(--press)}
@@ -308,7 +318,7 @@ footer{margin-top:52px;border-top:1.5px solid var(--ink);padding-top:18px;
   font-size:12.5px;color:var(--ink-soft)}
 footer a{color:var(--ink-soft)}
 .disc{margin-top:18px;padding-top:13px;border-top:1px solid var(--rule);font-size:11.5px}
-.err{background:rgba(150,36,31,.09);border-left:3px solid var(--alarm);padding:12px 14px;
+.err{background:var(--tint-alarm);border-left:3px solid var(--alarm);padding:12px 14px;
   margin:16px 0;font-size:13.5px;display:none}
 """
 
@@ -775,6 +785,7 @@ def render_privacy_html(site, repo_url=""):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0E13">
 <title>隱私權政策 — 流動性與尾部風險監測</title>
 <style>%s
 .wrap{max-width:720px}
@@ -840,6 +851,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0E13">
 <title>流動性與尾部風險監測</title>
 <meta name="description" content="美國流動性與尾部風險的五層監測盤，每個交易日收盤後自動更新。先講結論，再給數字。">
 <meta property="og:title" content="流動性與尾部風險監測">
