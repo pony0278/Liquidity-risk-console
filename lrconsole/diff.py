@@ -145,6 +145,31 @@ def render_markdown_summary(snapshot, changes):
         "",
         "**判定**：第 %d 階 · %s" % (snapshot["level"], snapshot["verdict"]["headline"]),
         "",
+    ]
+    # 同一個階也有輕重——光寫「第 1 階」，8 月初和 10 月看起來一模一樣。
+    breadth = snapshot.get("breadth")
+    if breadth and breadth.get("now"):
+        now, then = breadth["now"], breadth.get("then")
+        lines += ["**整盤亮燈**：%d／%d%s" % (
+            now["lit"], now["rated"],
+            "（%d 天前 %d／%d）" % (breadth["days"], then["lit"], then["rated"]) if then else ""), ""]
+    distances = []
+    for rung in snapshot.get("ladder", []):
+        prox = rung.get("proximity")
+        if rung["level"] <= snapshot["level"] or not prox:
+            continue
+        if prox["position"] is None:
+            distances.append("第 %d 階 資料不足" % rung["level"])
+            continue
+        lead = prox["gauges"] if prox["mode"] == "all" else prox["gauges"][:1]
+        distances.append("第 %d 階 %.0f%%（%s）" % (
+            rung["level"], prox["position"] * 100,
+            " 且 ".join("%s %s → %s" % (g["label"], g["current_text"], g["trigger_text"])
+                       for g in lead)))
+    if distances:
+        lines += ["**距下一階**（0%＝平常、100%＝觸發）：", ""]
+        lines += ["- %s" % d for d in distances] + [""]
+    lines += [
         "**資料截至**：%s ／ **掃描時間**：%s" % (
             snapshot.get("data_as_of") or "—", snapshot["scan_time"]),
         "",

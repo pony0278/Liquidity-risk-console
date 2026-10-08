@@ -9,7 +9,7 @@
 import ast
 import operator
 
-__all__ = ["evaluate", "referenced_names", "ExprError"]
+__all__ = ["evaluate", "referenced_names", "comparison_terms", "ExprError"]
 
 
 class ExprError(ValueError):
@@ -151,3 +151,57 @@ def referenced_names(expr):
         for n in ast.walk(tree)
         if isinstance(n, ast.Name) and n.id not in _CONSTS and n.id not in _FUNCS
     }
+
+
+_FLIP = {">": "<", ">=": "<=", "<": ">", "<=": ">="}
+_OP_TEXT = {ast.Gt: ">", ast.GtE: ">=", ast.Lt: "<", ast.LtE: "<="}
+
+
+def _number(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+            and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        inner = _number(node.operand)
+        if inner is not None:
+            return -inner if isinstance(node.op, ast.USub) else inner
+    return None
+
+
+def _term(node):
+    """`變數 比較 常數`（或反過來寫）→ (變數, 方向, 門檻)；其他形狀回傳 None。"""
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+        return None
+    op = _OP_TEXT.get(type(node.ops[0]))
+    if op is None:
+        return None
+    left, right = node.left, node.comparators[0]
+    if isinstance(left, ast.Name) and left.id not in _CONSTS and _number(right) is not None:
+        return (left.id, op, _number(right))
+    if isinstance(right, ast.Name) and right.id not in _CONSTS and _number(left) is not None:
+        return (right.id, _FLIP[op], _number(left))
+    return None
+
+
+def comparison_terms(expr):
+    """把簡單的門檻規則拆成 ("any"|"all", [(變數, 方向, 門檻), ...])。
+
+    給「距下一階還有多遠」用：門檻直接從規則本身讀，不在別處再寫一份——
+    兩份遲早會不一致，改了規則、刻度卻還指著舊門檻。只認得一層 and／or
+    串起來的 `變數 > 常數` 這類比較；算術、函式、and／or 混用一律回傳
+    None，由上層顯示成「無法換算」，而不是硬猜一個意思。
+    """
+    if not expr:
+        return None
+    try:
+        tree = ast.parse(expr, mode="eval").body
+    except SyntaxError:
+        return None
+    if isinstance(tree, ast.BoolOp):
+        mode = "all" if isinstance(tree.op, ast.And) else "any"
+        terms = [_term(v) for v in tree.values]
+    else:
+        mode, terms = "any", [_term(tree)]
+    if not terms or any(t is None for t in terms):
+        return None
+    return mode, terms

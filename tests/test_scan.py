@@ -19,7 +19,8 @@ sys.path.insert(0, os.path.join(BASE_DIR, "tests"))
 import scan  # noqa: E402
 from fixtures import CALM, STRESS, write_history  # noqa: E402
 from lrconsole import diff as diff_mod  # noqa: E402
-from lrconsole.expr import ExprError, evaluate, evaluate_value  # noqa: E402
+from lrconsole import evaluate as evaluate_mod  # noqa: E402
+from lrconsole.expr import ExprError, comparison_terms, evaluate, evaluate_value  # noqa: E402
 from lrconsole.fetch import FetchResult, Fetcher  # noqa: E402
 from lrconsole.history import load_history, save_history  # noqa: E402
 from lrconsole.series import Series, build_metrics  # noqa: E402
@@ -994,6 +995,208 @@ class WorkflowTests(unittest.TestCase):
     def test_delta_step_is_skipped_when_the_scan_did_not_run(self):
         """間隔沒到時 reports/latest.json 是上一次的，不能拿來判斷「新引信」。"""
         self.assertIn("steps.scan.outputs.ran == '1'", self.text)
+
+
+class ComparisonTermsTests(unittest.TestCase):
+    """刻度的門檻直接從規則拆出來，不另外存一份。拆不動就說拆不動，不猜。"""
+
+    def test_single_comparison(self):
+        self.assertEqual(comparison_terms("hy_oas > 450"), ("any", [("hy_oas", ">", 450.0)]))
+
+    def test_or_and_negative_constants(self):
+        self.assertEqual(comparison_terms("vix > 30 or usdjpy_pct1 <= -2"),
+                         ("any", [("vix", ">", 30.0), ("usdjpy_pct1", "<=", -2.0)]))
+
+    def test_and(self):
+        mode, terms = comparison_terms("y30_d5 >= 0.15 and dxy_pct5 <= -1.0")
+        self.assertEqual(mode, "all")
+        self.assertEqual(terms, [("y30_d5", ">=", 0.15), ("dxy_pct5", "<=", -1.0)])
+
+    def test_constant_on_the_left_is_normalised(self):
+        self.assertEqual(comparison_terms("450 < hy_oas"), ("any", [("hy_oas", ">", 450.0)]))
+
+    def test_shapes_it_cannot_read_return_none(self):
+        for expr in ("true", "abs(x) > 3", "x + y > 3", "a == 1", "1 < a < 3",
+                     "(a > 1 and b > 2) or c > 3", "a > b", "", None):
+            self.assertIsNone(comparison_terms(expr), expr)
+
+
+class ProximityTests(unittest.TestCase):
+    """距下一階：0＝平常、1＝觸發，而且只有規則真的成立時才會是 1。"""
+
+    CFG = {
+        "hy_oas": {"key": "hy_oas", "label": "HY OAS", "unit": "bps", "decimals": 0, "freq": "每日"},
+        "usdjpy": {"key": "usdjpy", "label": "USD/JPY", "unit": "", "decimals": 2, "freq": "每日"},
+        "y30": {"key": "y30", "label": "30Y", "unit": "%", "decimals": 3, "freq": "每日"},
+        "sofr_iorb": {"key": "sofr_iorb", "label": "SOFR − IORB", "unit": "bps",
+                      "decimals": 0, "freq": "每日"},
+    }
+
+    @staticmethod
+    def _dated(values):
+        start = datetime(2024, 1, 1)
+        return Series([((start + timedelta(days=i)).strftime("%Y-%m-%d"), float(v))
+                       for i, v in enumerate(values)])
+
+    def setUp(self):
+        self.series = {
+            "hy_oas": self._dated([300.0] * 200),          # 平常＝300
+            "usdjpy": self._dated([100.0, 100.5] * 100),   # 典型單日 ±0.5%
+            "y30": self._dated([5.0 + 0.01 * (i % 2) for i in range(200)]),
+            "sofr_iorb": self._dated([-3.0] * 200),
+        }
+
+    def _prox(self, expr, metrics):
+        return evaluate_mod._rung_proximity(expr, metrics, self.series, self.CFG)
+
+    def test_level_runs_from_median_to_trigger(self):
+        prox = self._prox("hy_oas > 450", {"hy_oas": 375.0})
+        self.assertAlmostEqual(prox["position"], 0.5)
+        gauge = prox["gauges"][0]
+        self.assertEqual((gauge["current_text"], gauge["trigger_text"]), ("375 bps", "450 bps"))
+
+    def test_one_exactly_when_the_rule_fires(self):
+        for value, fires in ((451.0, True), (450.0, False), (449.9, False)):
+            prox = self._prox("hy_oas > 450", {"hy_oas": value})
+            self.assertEqual(evaluate("hy_oas > 450", {"hy_oas": value}), fires)
+            if fires:
+                self.assertEqual(prox["position"], 1.0)
+            else:
+                self.assertLess(prox["position"], 1.0, "沒觸發就不能畫到紅線上")
+
+    def test_calmer_than_usual_sits_at_zero(self):
+        self.assertEqual(self._prox("hy_oas > 450", {"hy_oas": 250.0})["position"], 0.0)
+
+    def test_change_gauge_starts_at_a_typical_move_not_zero(self):
+        """用 0 當錨點，USD/JPY 隨便一天 −0.4% 就會被畫成往去槓桿走了兩成。"""
+        ordinary = self._prox("usdjpy_pct1 <= -2", {"usdjpy_pct1": -0.4})
+        self.assertEqual(ordinary["position"], 0.0)
+        big = self._prox("usdjpy_pct1 <= -2", {"usdjpy_pct1": -1.25})
+        self.assertAlmostEqual(big["position"], 0.5, places=2)
+        self.assertEqual(big["gauges"][0]["current_text"], "-1.2%")
+
+    def test_percentage_point_changes_are_shown_in_bps(self):
+        gauge = self._prox("y30_d5 >= 0.15", {"y30_d5": 0.02})["gauges"][0]
+        self.assertEqual((gauge["current_text"], gauge["trigger_text"]), ("+2 bps", "+15 bps"))
+
+    def test_streak_counts_from_zero(self):
+        prox = self._prox("sofr_iorb_pos_streak >= 3", {"sofr_iorb_pos_streak": 1})
+        self.assertAlmostEqual(prox["position"], 0.333)
+        self.assertEqual(prox["gauges"][0]["current_text"], "1 天")
+
+    def test_or_takes_the_closest_leg_and_and_takes_the_weakest(self):
+        metrics = {"hy_oas": 375.0, "usdjpy_pct1": 0.3}
+        either = self._prox("usdjpy_pct1 <= -2 or hy_oas > 450", metrics)
+        self.assertAlmostEqual(either["position"], 0.5)
+        self.assertEqual(either["gauges"][0]["var"], "hy_oas", "最接近觸發的那條排第一")
+        both = self._prox("usdjpy_pct1 <= -2 and hy_oas > 450", metrics)
+        self.assertEqual(both["position"], 0.0)
+
+    def test_missing_half_makes_the_whole_rung_unknown(self):
+        """跟 evaluate() 同一個原則：拿剩下那半畫出「離觸發很遠」＝把抓不到當成沒問題。"""
+        prox = self._prox("usdjpy_pct1 <= -2 or hy_oas > 450", {"hy_oas": 375.0})
+        self.assertIsNone(prox["position"])
+
+    def test_floor_rung_has_no_scale(self):
+        self.assertIsNone(self._prox("true", {}))
+
+    def test_every_shipped_rung_above_the_floor_gets_a_scale(self):
+        """有人把某階改成解析器拆不動的寫法時，畫面會默默少一條刻度——在這裡擋。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, _ = run_scan(tmp, CALM)
+            for rung in snapshot["ladder"]:
+                if rung["level"] == 1:
+                    self.assertIsNone(rung["proximity"])
+                    continue
+                self.assertIsNotNone(rung["proximity"], "第 %d 階拆不出刻度" % rung["level"])
+                self.assertIsNotNone(rung["proximity"]["position"], "第 %d 階" % rung["level"])
+        finally:
+            shutil.rmtree(tmp)
+
+
+class BreadthTests(unittest.TestCase):
+    """同一個階也有輕重：8 月初和 10 月都是第 1 階，亮燈數卻差很多。"""
+
+    def test_counts_skip_hidden_and_unrated(self):
+        snap = {"indicators": [
+            {"status": "alarm", "hidden": False}, {"status": "watch", "hidden": False},
+            {"status": "ok", "hidden": False}, {"status": "unknown", "hidden": False},
+            {"status": "info", "hidden": False}, {"status": "alarm", "hidden": True}]}
+        counts = evaluate_mod.status_breadth(snap)
+        self.assertEqual((counts["lit"], counts["rated"]), (2, 3),
+                         "沒燈號（無資料／僅記錄）不能算成正常，隱藏的也不算")
+
+    def test_lookback_uses_the_same_ruler_on_older_data(self):
+        """只動最近 10 個交易日的 HY：今天多一盞，30 天前那排完全不變。"""
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "history.csv")
+            write_history(path, CALM)
+            ind, rules, _ = scan.load_configs(os.path.join(BASE_DIR, "config"))
+            series_map, notes = evaluate_mod.resolve_series(ind, {}, load_history(path),
+                                                            record_failures=False)
+            scan_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+0000")
+
+            def lookback(series):
+                snap = evaluate_mod.build_snapshot(ind, rules, series, notes, scan_time)
+                return evaluate_mod.breadth_lookback(ind, rules, series, snap)
+
+            base = lookback(series_map)
+            hy = series_map["hy_oas"].points
+            bumped = dict(series_map)
+            bumped["hy_oas"] = Series([(d, 400.0 if i >= len(hy) - 10 else v)
+                                       for i, (d, v) in enumerate(hy)])
+            after = lookback(bumped)
+
+            self.assertEqual(after["now"]["lit"], base["now"]["lit"] + 1)
+            self.assertEqual(after["then"], base["then"])
+            expected = (datetime.now(timezone.utc).date() - timedelta(days=30)).isoformat()
+            self.assertEqual(base["then_date"], expected)
+        finally:
+            shutil.rmtree(tmp)
+
+
+class LadderDisplayTests(unittest.TestCase):
+    """首屏不能只寫「第 1 階」：要看得出離下一階多遠、整盤比 30 天前亮了幾盞。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp()
+        _, cls.snapshot, cls.out_dir = run_scan(cls.tmp, CALM)
+
+        def read(name):
+            with open(os.path.join(cls.out_dir, name), encoding="utf-8") as handle:
+                return handle.read()
+        cls.index = read("index.html")
+        cls.console = read("console.html")
+        cls.summary = read("summary-%s.md" % cls.snapshot["scan_time"][:10])
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp)
+
+    def test_snapshot_carries_both(self):
+        self.assertEqual(self.snapshot["level"], 1)
+        breadth = self.snapshot["breadth"]
+        self.assertEqual(set(breadth), {"days", "then_date", "now", "then"})
+        self.assertEqual(breadth["days"], 30)
+
+    def test_public_page_draws_both(self):
+        for marker in ('id="next-rungs"', 'id="breadth"', "renderNextRungs(snap)",
+                       "renderBreadth(snap)"):
+            self.assertIn(marker, self.index)
+        validator = _Validator()
+        validator.feed(self.index)
+        self.assertEqual(validator.errors, [])
+
+    def test_console_has_one_bar_per_rung_above_the_current_one(self):
+        self.assertEqual(self.console.count('<span class="nbar'), 4)
+        self.assertIn('class="breadth-line"', self.console)
+
+    def test_summary_mentions_both(self):
+        self.assertIn("整盤亮燈", self.summary)
+        self.assertIn("距下一階", self.summary)
 
 
 if __name__ == "__main__":

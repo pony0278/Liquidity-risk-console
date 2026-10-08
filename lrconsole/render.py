@@ -381,20 +381,50 @@ def _chains(snapshot):
         '</section>' % "\n".join(blocks))
 
 
+def _proximity_bar(proximity):
+    """距該階還有多遠：左端＝平常，右端紅線＝觸發。與公開版同一份資料，
+    但這裡是伺服器端畫的——工程視圖在關掉 JS 時也要完整。"""
+    if proximity is None or proximity.get("position") is None:
+        reason = "規則無法換算成刻度" if proximity is None else "資料不足，無法換算"
+        return '<span class="nbar dead" title="%s"></span>' % reason
+    gauges = proximity["gauges"]
+    joiner = " 且 " if proximity["mode"] == "all" else " 或 "
+    detail = joiner.join("%s %s → %s" % (g["label"], g["current_text"], g["trigger_text"])
+                         for g in gauges)
+    position = max(0.0, min(1.0, proximity["position"]))
+    return '<span class="nbar" title="%s"><b class="%s" style="left:%.0f%%"></b></span>' % (
+        _esc(detail), "hit" if position >= 1 else "", position * 100)
+
+
+def _breadth_line(snapshot):
+    breadth = snapshot.get("breadth")
+    if not breadth or not breadth.get("now"):
+        return ""
+    now, then = breadth["now"], breadth.get("then")
+    text = "整盤亮燈 <b>%d</b>／%d（警報 %d · 明確壓力 %d · 警示 %d）" % (
+        now["lit"], now["rated"], now["alarm"], now["press"], now["watch"])
+    if then:
+        text += " · %d 天前（%s）%d／%d" % (
+            breadth["days"], _esc(breadth["then_date"]), then["lit"], then["rated"])
+    return '  <div class="breadth-line">%s</div>\n' % text
+
+
 def _ladder(snapshot):
     rows = []
     for rung in snapshot["ladder"]:
+        above = rung["level"] > snapshot["level"] and "proximity" in rung
         rows.append(
             '    <div class="rung%s">\n'
             '      <div class="lv">%d</div>\n'
             '      <div><h4>%s</h4></div>\n'
             '      <div class="sig">%s</div>\n'
-            '      <div class="rd %s">%s</div>\n'
+            '      <div class="rd %s">%s%s</div>\n'
             '    </div>' % (
                 " here" if rung["here"] else "", rung["level"], _esc(rung["title"]),
                 _esc(rung["signal"]),
                 "t-press" if rung["here"] else "t-ok",
-                "◀ 你在這裡" if rung["here"] else _esc(rung["readout"] or "未到")))
+                "◀ 你在這裡" if rung["here"] else _esc(rung["readout"] or "未到"),
+                _proximity_bar(rung["proximity"]) if above else ""))
 
     return (
         '<section>\n'
@@ -402,9 +432,12 @@ def _ladder(snapshot):
         '<span class="anno">ESCALATION · 現在在第幾階</span>'
         '<span class="anno">SECTION D</span></div>\n'
         '  <p class="lede note-only">「危機」有幾個標誌：資金斷裂、信用擴張、被迫去槓桿、'
-        '相關性衝到 1。階梯由下方規則自動判定，取最高成立者。</p>\n'
+        '相關性衝到 1。階梯由下方規則自動判定，取最高成立者。'
+        '每階右側的刻度是「離觸發還有多遠」：左端＝平常（近兩年中位數，或同一種變動的'
+        '典型幅度），紅線＝觸發。</p>\n'
+        '%s'
         '  <div class="ladder">\n%s\n  </div>\n'
-        '</section>' % "\n".join(rows))
+        '</section>' % (_breadth_line(snapshot), "\n".join(rows)))
 
 
 def _tripwires(snapshot):

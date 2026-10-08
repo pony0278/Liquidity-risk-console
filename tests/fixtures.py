@@ -11,8 +11,12 @@ from datetime import date, timedelta
 __all__ = ["write_history", "CALM", "STRESS"]
 
 
+# 合成資料的日期跟著「今天」走，而且模仿真實的發佈落後。原本寫死在
+# 2026/7 底，過期判定卻是拿真實時鐘比——到了 10 月，月頻資料停在 7/1
+# 變成 99 天大，「月頻落後兩個月不算過期」那條測試就這樣自己壞掉了。
+
 def _business_days(count, end=None):
-    end = end or date(2026, 7, 31)
+    end = end or date.today() - timedelta(days=1)  # 掃描在收盤後跑，最新是昨天
     days, cursor = [], end
     while len(days) < count:
         if cursor.weekday() < 5:
@@ -22,7 +26,7 @@ def _business_days(count, end=None):
 
 
 def _weekly(count, end=None, weekday=2):
-    end = end or date(2026, 7, 29)
+    end = end or date.today() - timedelta(days=2)  # H.4.1：週三的資料，週四才發
     cursor = end
     while cursor.weekday() != weekday:
         cursor -= timedelta(days=1)
@@ -31,7 +35,14 @@ def _weekly(count, end=None, weekday=2):
 
 
 def _monthly(count, end=None):
-    end = end or date(2026, 7, 1)
+    if end is None:
+        # FRED 的月頻標在該月 1 號，要等下個月第一個週五才發：月初那幾天，
+        # 最新的還是「上上個月」。這樣最舊約 67 天，跟現實一致。
+        today = date.today()
+        year, month = today.year, today.month - (1 if today.day >= 8 else 2)
+        while month <= 0:
+            month, year = month + 12, year - 1
+        end = date(year, month, 1)
     days, year, month = [], end.year, end.month
     for _ in range(count):
         days.append(date(year, month, 1))

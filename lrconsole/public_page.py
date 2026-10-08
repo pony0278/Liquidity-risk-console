@@ -103,6 +103,34 @@ h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
 .lstep.here i{background:currentColor;border-color:currentColor}
 .lstep.here em{color:currentColor;font-weight:700}
 
+/* ---------- 距下一階：左端＝平常，右端（紅線）＝觸發 ---------- */
+.lnext{margin-top:22px;max-width:460px}
+.nrow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:3px 10px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--rule)}
+.nrow .nl{font-size:12.5px;font-weight:600;white-space:nowrap}
+.nrow .nv{grid-column:2;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);line-height:1.4}
+.nrail{position:relative;display:block;height:6px;background:var(--paper-2)}
+.nrail::after{content:"";position:absolute;right:0;top:-3px;width:2px;height:12px;background:var(--alarm)}
+.nrail b{position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;
+  border-radius:50%;background:currentColor;color:var(--ink);border:2px solid var(--paper)}
+.nrail b.t-alarm{color:var(--alarm)}
+.nrail.dead{background:repeating-linear-gradient(90deg,var(--paper-2) 0 4px,transparent 4px 8px)}
+.nrail.dead::after{display:none}
+.rung .rprox{width:132px;margin:7px 0 2px auto}
+
+/* ---------- 整盤亮燈：同一階也有輕重。方塊數是主通道，顏色只做強化 ---------- */
+.breadth{margin-bottom:24px}
+.brow{display:grid;grid-template-columns:44px auto minmax(0,1fr);gap:10px;align-items:center;padding:4px 0}
+.brow .bl{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+.bsq{display:flex;flex-wrap:wrap;gap:2px}
+.bsq i{display:block;width:9px;height:14px;background:var(--paper-2);border:1px solid var(--rule)}
+.bsq i.alarm{background:var(--alarm);border-color:var(--alarm)}
+.bsq i.press{background:var(--press);border-color:var(--press)}
+.bsq i.watch{background:var(--watch);border-color:var(--watch)}
+.brow .bn{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}
+.brow .bn b{font-size:15px;color:var(--ink)}
+.brow.then .bsq{opacity:.6}
+
 /* ---------- 壓力分布：點的位置＝指標在自己近兩年區間的百分位 ---------- */
 .paxis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;
   color:var(--ink-faint);letter-spacing:.08em;margin:10px 0 4px;padding-left:122px}
@@ -334,6 +362,69 @@ _JS = r"""
       }).join("") + "</div>";
   }
 
+  // 距下一階：每一階攤成一條線，左端是平常的樣子（近兩年中位數，或同一種
+  // 變動的典型幅度），右端紅線是觸發。門檻與位置都在 Python 那邊從規則本身
+  // 算好，這裡只畫、不寫任何數字——兩邊各存一份門檻，遲早會對不上。
+  function proximityRail(p) {
+    if (!p || p.position == null) {
+      return '<span class="nrail dead"></span>';
+    }
+    var pos = Math.max(0, Math.min(100, p.position * 100));
+    return '<span class="nrail"><b class="' + (p.position >= 1 ? "t-alarm" : "")
+      + '" style="left:' + pos.toFixed(0) + '%"></b></span>';
+  }
+  function proximityText(p, every) {
+    if (!p) return "規則無法換算成刻度";
+    if (p.position == null) return "資料不足，無法換算";
+    // 「或」只要一條成立就觸發，首屏只放最接近的那條；「且」兩條都要，全列
+    var shown = (p.mode === "all" || every) ? p.gauges : p.gauges.slice(0, 1);
+    return shown.map(function (g) {
+      return g.label + " " + g.current_text + " → " + g.trigger_text;
+    }).join(p.mode === "all" ? " 且 " : " 或 ");
+  }
+  function renderNextRungs(snap) {
+    var cur = snap.level || 1;
+    // 舊版 latest.json 沒有 proximity 欄位：不畫，而不是畫一排「資料不足」
+    var higher = (snap.ladder || []).filter(function (r) {
+      return r.level > cur && r.proximity !== undefined;
+    });
+    el("next-rungs").innerHTML = !higher.length ? "" :
+      '<div class="anno" style="margin-bottom:4px">離下一階還有多遠 · 左端＝平常　紅線＝觸發</div>'
+      + higher.map(function (r) {
+        return '<div class="nrow" title="' + esc(r.title + " · " + proximityText(r.proximity, true)) + '">'
+          + '<span class="nl">第 ' + r.level + " 階 " + esc(LADDER_SHORT[r.level] || r.title) + "</span>"
+          + proximityRail(r.proximity)
+          + '<span class="nv">' + esc(proximityText(r.proximity)) + "</span></div>";
+      }).join("");
+  }
+
+  // 整盤亮燈：同一個階也有輕重。8 月初和 10 月都是第 1 階，亮燈數卻從 6
+  // 變成 10。兩排用同一套門檻量，差異只來自資料，不來自改過的尺。
+  function breadthRow(label, c, extra) {
+    var squares = ["alarm", "press", "watch", "ok"].map(function (s) {
+      return new Array((c[s] || 0) + 1).join('<i class="' + s + '"></i>');
+    }).join("");
+    return '<div class="brow' + (extra ? " " + extra : "") + '" title="警報 ' + c.alarm
+      + " · 明確壓力 " + c.press + " · 警示 " + c.watch + " · 正常 " + c.ok + '">'
+      + '<span class="bl">' + esc(label) + "</span>"
+      + '<span class="bsq">' + squares + "</span>"
+      + '<span class="bn"><b>' + c.lit + "</b>／" + c.rated + "</span></div>";
+  }
+  function renderBreadth(snap) {
+    var b = snap.breadth;
+    if (!b || !b.now) { el("breadth").innerHTML = ""; return; }
+    var trend = "";
+    if (b.then) {
+      var d = b.now.lit - b.then.lit;
+      trend = d > 0 ? "比 " + b.days + " 天前多 " + d + " 個"
+        : (d < 0 ? "比 " + b.days + " 天前少 " + (-d) + " 個" : "和 " + b.days + " 天前一樣");
+    }
+    el("breadth").innerHTML =
+      '<div class="anno" style="margin-bottom:4px">整盤亮燈 · 警示以上的指標' + (trend ? " · " + trend : "") + "</div>"
+      + breadthRow("今天", b.now)
+      + (b.then ? breadthRow(b.then_date.slice(5).replace("-", "/"), b.then, "then") : "");
+  }
+
   // 壓力分布：取代首屏的四段文字。點在右邊＝這指標在自己近兩年區間的
   // 高檔。「利率在頂、信用在底」這個結論直接用位置講，不用句子。
   var PMAP = [
@@ -515,7 +606,11 @@ _JS = r"""
         + '<div class="n">' + r.level + "</div>"
         + "<div><h3>" + esc(r.title) + '</h3><div class="sig">' + esc(r.signal) + "</div></div>"
         + '<div class="rd ' + (r.here ? "t-press" : "t-ok") + '">'
-        + (r.here ? "◀ 現在在這裡" : esc(r.readout || "未到")) + "</div></div>";
+        + (r.here ? "◀ 現在在這裡" : esc(r.readout || "未到"))
+        + (r.level > (snap.level || 1) && r.proximity !== undefined
+          ? '<div class="rprox" title="' + esc(proximityText(r.proximity, true)) + '">'
+            + proximityRail(r.proximity) + "</div>" : "")
+        + "</div></div>";
     }).join("");
   }
 
@@ -566,6 +661,8 @@ _JS = r"""
   function render(snap, series) {
     renderHeader(snap);
     renderLadderMeter(snap);
+    renderNextRungs(snap);
+    renderBreadth(snap);
     renderPressureMap(snap);
     renderTiers(snap);
     renderAlerts(snap);
@@ -765,8 +862,10 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
       <span class="hero-n" id="hero-n">—</span>
       <div class="hero-title" id="hero-title"></div>
       <div id="ladder-meter"></div>
+      <div id="next-rungs" class="lnext"></div>
     </div>
     <div>
+      <div id="breadth" class="breadth"></div>
       <div class="anno">壓力集中在哪 · 每個點＝該指標在自己近兩年區間的位置</div>
       <div id="pressure-map"></div>
       <details class="prose"><summary>文字判讀</summary><div id="hero-paras"></div></details>

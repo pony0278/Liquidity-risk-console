@@ -4,13 +4,15 @@
 reports/snapshot-*.json 拿出來重畫或比對，不必重抓資料。
 """
 
-from datetime import datetime, timezone
+import re
+import statistics
+from datetime import datetime, timedelta, timezone
 
-from .expr import evaluate, evaluate_value, referenced_names
+from .expr import comparison_terms, evaluate, evaluate_value, referenced_names
 from .series import Series, build_metrics
 
-__all__ = ["build_snapshot", "stale_limit_for", "stale_limit_for_indicator",
-           "STATUS_ORDER", "status_worse"]
+__all__ = ["build_snapshot", "breadth_lookback", "series_as_of", "status_breadth",
+           "stale_limit_for", "stale_limit_for_indicator", "STATUS_ORDER", "status_worse"]
 
 STATUS_ORDER = {"unknown": -1, "info": -1, "ok": 0, "watch": 1, "press": 2, "alarm": 3}
 STATUS_TEXT = {"ok": "正常", "watch": "警示", "press": "明確壓力", "alarm": "警報",
@@ -352,6 +354,190 @@ def _format_readout(template, var_names, metrics):
         return ""
 
 
+# ---------- 距下一階還有多遠 ----------
+#
+# 每一階的規則都是「某個變數越過某個門檻」。刻度把它攤成一條線：
+#   左端＝平常的樣子，右端＝觸發。
+# 「平常」有明確定義，不是挑一個好看的數字：
+#   水位（hy_oas、vix…）    → 近兩年的中位數
+#   變動（usdjpy_pct1…）    → 近兩年「同一種變動」的典型幅度，取觸發的方向。
+#                             用 0 當錨點的話，USD/JPY 隨便一天 −0.4% 都會被
+#                             畫成往「去槓桿」走了兩成，那只是日常雜訊
+#   連續天數（_pos_streak） → 0
+# 門檻從規則本身拆出來（expr.comparison_terms），不另外寫一份。
+
+_CHANGE_METRIC = re.compile(r"^(?P<key>.+)_(?P<kind>d|pct)(?P<n>\d+)(?P<bps>_bps)?$")
+_STREAK_METRIC = re.compile(r"^(?P<key>.+)_(?P<kind>pos|up)_streak$")
+_WINDOW_WORD = {1: "單日", 5: "5 日", 20: "20 期", 60: "60 期"}
+_ANCHOR_WINDOW = 500  # 約兩年的日資料，與 pct_rank 的「近兩年」同一個口徑
+
+
+def _describe_var(name, cfg_by_key):
+    """規則裡的變數名稱 → 它是哪個指標的哪一種量。"""
+    cfg = cfg_by_key.get(name)
+    if cfg is not None:
+        return {"kind": "level", "key": name, "cfg": cfg, "label": cfg.get("label", name)}
+    match = _CHANGE_METRIC.match(name)
+    if match and match.group("key") in cfg_by_key:
+        cfg = cfg_by_key[match.group("key")]
+        n = int(match.group("n"))
+        return {"kind": "change", "key": match.group("key"), "cfg": cfg, "n": n,
+                "pct": match.group("kind") == "pct", "bps": bool(match.group("bps")),
+                "label": "%s %s" % (cfg.get("label", match.group("key")),
+                                    _WINDOW_WORD.get(n, "%d 期" % n))}
+    match = _STREAK_METRIC.match(name)
+    if match and match.group("key") in cfg_by_key:
+        cfg = cfg_by_key[match.group("key")]
+        word = "連續為正" if match.group("kind") == "pos" else "連續上升"
+        return {"kind": "streak", "key": match.group("key"), "cfg": cfg,
+                "label": "%s %s" % (cfg.get("label", match.group("key")), word)}
+    return {"kind": "other", "key": None, "cfg": {}, "label": name}
+
+
+def _anchor(desc, series_map, threshold):
+    if desc["kind"] in ("streak", "other"):
+        return 0.0
+    series = series_map.get(desc["key"])
+    if not series:
+        return None
+    if desc["kind"] == "level":
+        return statistics.median(series.values[-_ANCHOR_WINDOW:])
+    n = desc["n"]
+    values = series.values[-(_ANCHOR_WINDOW + n):]
+    moves = []
+    for prior, latest in zip(values, values[n:]):
+        if desc["pct"]:
+            if prior:
+                moves.append((latest / prior - 1.0) * 100.0)
+        else:
+            moves.append((latest - prior) * (100.0 if desc["bps"] else 1.0))
+    if not moves:
+        return None
+    typical = statistics.median([abs(m) for m in moves])
+    return typical if threshold > 0 else -typical if threshold < 0 else 0.0
+
+
+def _period_word(cfg):
+    freq = cfg.get("freq") or ""
+    for prefix, word in (("每日", "天"), ("每週", "週"), ("每月", "個月")):
+        if freq.startswith(prefix):
+            return word
+    return "期"
+
+
+def _fmt_var(value, desc):
+    if value is None:
+        return "—"
+    cfg = desc["cfg"]
+    unit, decimals = cfg.get("unit", ""), cfg.get("decimals", 2)
+    if desc["kind"] == "level":
+        return _fmt(value, decimals, unit)
+    if desc["kind"] == "change":
+        if desc["pct"]:
+            return "%+.1f%%" % value
+        if desc["bps"]:
+            return "%+.0f bps" % value
+        if unit == "%":
+            # y30_d5 這類量的原始單位是百分點；讀者看的是 bps
+            return "%+.0f bps" % (value * 100.0)
+        return _fmt_signed(value, decimals, unit)
+    if desc["kind"] == "streak":
+        return "%d %s" % (round(value), _period_word(cfg))
+    return "%.2f" % value
+
+
+def _position(current, anchor, op, threshold):
+    """0＝平常、1＝觸發。只有條件真的成立才會是 1，跟該階的燈號永遠一致。"""
+    if current is None or anchor is None:
+        return None
+    above = op in (">", ">=")
+    met = {">": current > threshold, ">=": current >= threshold,
+           "<": current < threshold, "<=": current <= threshold}[op]
+    if met:
+        return 1.0
+    span = (threshold - anchor) if above else (anchor - threshold)
+    if span <= 0:
+        # 「平常」本身就在門檻外——這條規則平常就該亮著，畫成刻度沒有意義
+        return None
+    progress = ((current - anchor) if above else (anchor - current)) / span
+    # 取到千分位：SRF 平常是 $0.001B、今天 $0.002B 這種浮點雜訊，不該讓它
+    # 在「誰最接近觸發」的排序裡贏過畫面上同樣是 0% 的另一條
+    return round(max(0.0, min(0.99, progress)), 3)
+
+
+def _rung_proximity(expr, metrics, series_map, cfg_by_key):
+    parsed = comparison_terms(expr)
+    if parsed is None:
+        return None
+    mode, terms = parsed
+    gauges = []
+    for name, op, threshold in terms:
+        desc = _describe_var(name, cfg_by_key)
+        current = metrics.get(name)
+        anchor = _anchor(desc, series_map, threshold)
+        gauges.append({
+            "var": name,
+            "label": desc["label"],
+            "op": op,
+            "current": current,
+            "trigger": threshold,
+            "anchor": anchor,
+            "position": _position(current, anchor, op, threshold),
+            "current_text": _fmt_var(current, desc),
+            "trigger_text": _fmt_var(threshold, desc),
+        })
+    positions = [g["position"] for g in gauges]
+    if any(p is None for p in positions):
+        # 跟 evaluate() 同一個原則：任一半沒資料就整條未知。用剩下那半畫出
+        # 「離觸發很遠」，等於把抓不到當成沒問題。
+        position = None
+    else:
+        position = min(positions) if mode == "all" else max(positions)
+    if mode == "any":
+        # 「或」的時候只要一條成立就夠，最接近觸發的那條排第一
+        gauges.sort(key=lambda g: -(g["position"] or 0.0))
+    return {"mode": mode, "position": position, "gauges": gauges}
+
+
+# ---------- 整盤亮燈：同一個階也有輕重 ----------
+
+_LIT = ("alarm", "press", "watch")
+
+
+def status_breadth(snapshot):
+    """非隱藏指標的燈號分布。unknown／info 不算進分母——沒燈號不等於正常。"""
+    counts = {"alarm": 0, "press": 0, "watch": 0, "ok": 0}
+    for indicator in snapshot.get("indicators", []):
+        if not indicator.get("hidden") and indicator.get("status") in counts:
+            counts[indicator["status"]] += 1
+    counts["lit"] = sum(counts[s] for s in _LIT)
+    counts["rated"] = counts["lit"] + counts["ok"]
+    return counts
+
+
+def series_as_of(series_map, date):
+    return {key: Series([p for p in series.points if p[0] <= date])
+            for key, series in series_map.items()}
+
+
+def breadth_lookback(indicator_cfg, rules_cfg, series_map, snapshot, days=30):
+    """今天的燈號分布，以及「同一套門檻套在 days 天前的資料上」的分布。
+
+    不讀 30 天前存下來的 snapshot：那份是用當時的門檻判的，中間只要調過
+    一次閾值，比出來的差異就是「尺換了」而不是「市場變了」——跟 --rebuild
+    不准重算變更清單是同一個道理。資料也用現在這份歷史，事後回補的點
+    （例如 Yahoo 補回 7 月底的 MOVE）會一起算進去，比當時看到的更接近真相。
+    """
+    try:
+        ref = datetime.strptime((snapshot.get("scan_time") or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    then = (ref - timedelta(days=days)).isoformat()
+    past = build_snapshot(indicator_cfg, rules_cfg, series_as_of(series_map, then), {}, then)
+    return {"days": days, "then_date": then,
+            "now": status_breadth(snapshot), "then": status_breadth(past)}
+
+
 def _verdict(level, ladder_titles, tier_status, indicators_by_key, fired, metrics):
     worst_tier = None
     worst = "ok"
@@ -478,6 +664,7 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
 
     ladder = []
     current_level = 1
+    cfg_by_key = {i["key"]: i for i in indicator_cfg}
     for rung in rules_cfg.get("ladder", []):
         state = evaluate(rung.get("expr"), metrics)
         entry = {
@@ -486,6 +673,9 @@ def build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_
             "signal": rung.get("signal", ""),
             "state": state,
             "readout": _format_readout(rung.get("readout"), rung.get("readout_vars", []), metrics),
+            # 第 1 階的規則是 true，拆不出門檻，這格會是 None——它是地板，
+            # 沒有「離它多遠」可言。
+            "proximity": _rung_proximity(rung.get("expr"), metrics, series_map, cfg_by_key),
         }
         ladder.append(entry)
         if state is True:

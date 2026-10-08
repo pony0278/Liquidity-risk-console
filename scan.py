@@ -30,8 +30,8 @@ from lrconsole import history as history_mod  # noqa: E402
 from lrconsole import notify as notify_mod  # noqa: E402
 from lrconsole import public_page  # noqa: E402
 from lrconsole import render as render_mod  # noqa: E402
-from lrconsole.evaluate import (build_snapshot, resolve_series,  # noqa: E402
-                                stale_limit_for_indicator)
+from lrconsole.evaluate import (breadth_lookback, build_snapshot,  # noqa: E402
+                                resolve_series, stale_limit_for_indicator)
 from lrconsole.expr import ExprError, referenced_names  # noqa: E402
 from lrconsole.fetch import FetchResult, Fetcher  # noqa: E402
 from lrconsole.series import Series, build_metrics  # noqa: E402
@@ -356,6 +356,20 @@ def main(argv=None):
         log("    ↳ 解除：%s" % "、".join(delta["cleared"]))
     if delta["ongoing"]:
         log("    ↳ 續亮：%s（不重複通知）" % "、".join(delta["ongoing"]))
+
+    # 同一個階也有輕重：8 月初和 10 月都是第 1 階，亮燈數卻從 6 個變成 10 個。
+    # 只看階數的讀者會以為兩個月沒變，所以把「同一把尺量 30 天前」一起存。
+    snapshot["breadth"] = breadth_lookback(indicator_cfg, rules_cfg, series_map, snapshot)
+    if snapshot["breadth"]:
+        b = snapshot["breadth"]
+        log("  整盤亮燈：%d／%d（%s 為 %d／%d）" % (
+            b["now"]["lit"], b["now"]["rated"], b["then_date"], b["then"]["lit"], b["then"]["rated"]))
+    distances = ["第 %d 階 %s" % (r["level"], "資料不足" if r["proximity"]["position"] is None
+                                 else "%.0f%%" % (r["proximity"]["position"] * 100))
+                 for r in snapshot["ladder"]
+                 if r["level"] > snapshot["level"] and r.get("proximity")]
+    if distances:
+        log("  距下一階：%s" % " · ".join(distances))
 
     log("\n[5/5] 產出報表")
     date_tag = scan_time[:10]
