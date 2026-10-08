@@ -393,6 +393,15 @@ body.show-notes .note-only{display:revert!important}
   border:1px solid var(--rule-hard);padding:4px 10px 3px;cursor:pointer;margin-top:4px;
 }
 .nbtn:hover{color:var(--ink);border-color:var(--ink)}
+/* 回到總覽：跟「顯示說明」同一個樣子，放在左上——返回的連結大家會先往那裡找，
+   手機上單欄排版時它也是第一個出現的 */
+.toback{
+  display:inline-block;margin-bottom:10px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:700;
+  color:var(--ink-soft);text-decoration:none;
+  border:1px solid var(--rule-hard);padding:4px 10px 3px;
+}
+.toback:hover,.toback:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
 td.bd{width:170px}
 td.bd .thx{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);
   margin-top:6px;line-height:1.5}

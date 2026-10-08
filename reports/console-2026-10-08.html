@@ -401,6 +401,15 @@ body.show-notes .note-only{display:revert!important}
   border:1px solid var(--rule-hard);padding:4px 10px 3px;cursor:pointer;margin-top:4px;
 }
 .nbtn:hover{color:var(--ink);border-color:var(--ink)}
+/* 回到總覽：跟「顯示說明」同一個樣子，放在左上——返回的連結大家會先往那裡找，
+   手機上單欄排版時它也是第一個出現的 */
+.toback{
+  display:inline-block;margin-bottom:10px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:700;
+  color:var(--ink-soft);text-decoration:none;
+  border:1px solid var(--rule-hard);padding:4px 10px 3px;
+}
+.toback:hover,.toback:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
 td.bd{width:170px}
 td.bd .thx{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);
   margin-top:6px;line-height:1.5}
@@ -414,6 +423,7 @@ body.show-notes td.bd .thx{display:block!important}
 <header>
   <div class="tb">
     <div>
+      <a class="toback" href="index.html">← 回到總覽</a>
       <div class="anno">系統壓力盤 / SYSTEMIC PRESSURE CONSOLE</div>
       <h1>流動性與尾部風險監測 <span>AUTO</span></h1>
     </div>

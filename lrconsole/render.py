@@ -50,6 +50,9 @@ def _header(snapshot):
         '<header>\n'
         '  <div class="tb">\n'
         '    <div>\n'
+        # 用 index.html 而不是 ./：存成單檔或用 file:// 開的時候，./ 會變成資料夾
+        # 列表而不是總覽頁。帶日期的存檔（console-日期.html）也在同一層，一樣適用。
+        '      <a class="toback" href="index.html">← 回到總覽</a>\n'
         '      <div class="anno">系統壓力盤 / SYSTEMIC PRESSURE CONSOLE</div>\n'
         '      <h1>流動性與尾部風險監測 <span>AUTO</span></h1>\n'
         '    </div>\n'

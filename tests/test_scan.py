@@ -1197,6 +1197,11 @@ class LadderDisplayTests(unittest.TestCase):
         gauges = sum(1 for i in self.snapshot["indicators"] if not i["hidden"])
         self.assertIn("全部 %d 格指標" % gauges, header, "格數要數出來，不能寫死")
 
+    def test_console_links_back_to_the_overview_from_its_header(self):
+        header = self.console[self.console.index("<header>"):self.console.index("</header>")]
+        self.assertIn('class="toback" href="index.html"', header,
+                      "用 index.html 不用 ./——用 file:// 開時 ./ 是資料夾列表")
+
     def test_console_has_one_bar_per_rung_above_the_current_one(self):
         self.assertEqual(self.console.count('<span class="nbar'), 4)
         self.assertIn('class="breadth-line"', self.console)
