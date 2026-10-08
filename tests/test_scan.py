@@ -1190,6 +1190,13 @@ class LadderDisplayTests(unittest.TestCase):
         validator.feed(self.index)
         self.assertEqual(validator.errors, [])
 
+    def test_full_console_entry_sits_in_the_header(self):
+        """入口要在頁首：手機上首屏有 1200px 高，放在首屏底部就看不到了。"""
+        header = self.index[self.index.index("<header>"):self.index.index("</header>")]
+        self.assertIn('class="tofull" href="console.html"', header)
+        gauges = sum(1 for i in self.snapshot["indicators"] if not i["hidden"])
+        self.assertIn("全部 %d 格指標" % gauges, header, "格數要數出來，不能寫死")
+
     def test_console_has_one_bar_per_rung_above_the_current_one(self):
         self.assertEqual(self.console.count('<span class="nbar'), 4)
         self.assertIn('class="breadth-line"', self.console)

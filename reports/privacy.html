@@ -35,6 +35,15 @@ h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
   letter-spacing:-.02em;margin:6px 0 0;line-height:1.15}
 .stamp{text-align:right;line-height:1.85;white-space:nowrap}
 .stamp .live{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:700}
+/* 完整版入口：放在頁首而不是首屏底部——手機上首屏有 1200px 高，放底部就
+   掉到第一個畫面外了。它在 .stamp（anno 樣式）裡，所以字型與大小寫要重設。 */
+.tofull{display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px;margin-top:10px;
+  padding:7px 12px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);
+  text-decoration:none;text-transform:none;letter-spacing:normal;line-height:1.35}
+.tofull b{font-family:var(--sans);font-size:13.5px;font-weight:700}
+.tofull span{font-family:var(--mono);font-size:10px;color:var(--ink-soft)}
+.tofull:hover,.tofull:focus-visible{background:var(--ink);color:var(--paper)}
+.tofull:hover span,.tofull:focus-visible span{color:var(--paper)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
 @media (prefers-reduced-motion:no-preference){.dot{animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}}
