@@ -1,6 +1,6 @@
 {
-  "scan_time": "2026-10-10T01:29:07+0000",
-  "data_as_of": "2026-10-10",
+  "scan_time": "2026-10-11T00:38:55+0000",
+  "data_as_of": "2026-10-11",
   "level": 1,
   "overall_status": "alarm",
   "verdict": {
@@ -113,7 +113,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 53.288364249578414,
@@ -148,7 +148,7 @@
     {
       "key": "sofr",
       "track": null,
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 32.54637436762226,
@@ -186,8 +186,8 @@
       "stale_days": 0,
       "stale_limit": 7,
       "stale": false,
-      "pct_rank": 32.14695752009185,
-      "span_years": 2.3819301848049284,
+      "pct_rank": 32.11009174311927,
+      "span_years": 2.3846680355920604,
       "range_text": "近 2.4 年區間第 32 百分位",
       "distance_text": "",
       "severity": 0,
@@ -200,8 +200,8 @@
       "decimals": 2,
       "value": 3.9,
       "display": "3.90%",
-      "date": "2026-10-10",
-      "points": 871,
+      "date": "2026-10-11",
+      "points": 872,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
@@ -260,7 +260,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 36.666666666666664,
@@ -295,7 +295,7 @@
     {
       "key": "tga",
       "track": null,
-      "stale_days": 3,
+      "stale_days": 4,
       "stale_limit": 14,
       "stale": false,
       "pct_rank": 79.03225806451613,
@@ -330,7 +330,7 @@
     {
       "key": "reserves",
       "track": null,
-      "stale_days": 3,
+      "stale_days": 4,
       "stale_limit": 14,
       "stale": false,
       "pct_rank": 33.064516129032256,
@@ -391,7 +391,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 4.040404040404041,
@@ -426,7 +426,7 @@
     {
       "key": "walcl",
       "track": null,
-      "stale_days": 3,
+      "stale_days": 4,
       "stale_limit": 14,
       "stale": false,
       "pct_rank": 62.096774193548384,
@@ -461,7 +461,7 @@
     {
       "key": "net_liquidity",
       "track": null,
-      "stale_days": 3,
+      "stale_days": 4,
       "stale_limit": 14,
       "stale": false,
       "pct_rank": 39.66942148760331,
@@ -538,7 +538,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 73.44000000000001,
@@ -607,7 +607,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 48.878205128205124,
@@ -684,7 +684,7 @@
         "prev_edge": 1100,
         "prev_distance": 152.0
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 99.83999999999999,
@@ -753,7 +753,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 87.17948717948718,
@@ -790,7 +790,7 @@
       "track": {
         "lo": 82.5,
         "hi": 167.5,
-        "marker_pct": 18.792356603285846,
+        "marker_pct": 18.78823673023897,
         "segments": [
           {
             "status": "ok",
@@ -826,11 +826,11 @@
           }
         ],
         "next_edge": 100,
-        "next_distance": 1.5264968872070312,
+        "next_distance": 1.529998779296875,
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 73.44322344322345,
@@ -845,14 +845,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 1,
-      "value": 98.47350311279297,
+      "value": 98.47000122070312,
       "display": "98.5",
       "date": "2026-10-09",
       "points": 546,
       "status": "ok",
       "status_label": "正常",
       "basis": "水位",
-      "change_1": -2.2264938354492188,
+      "change_1": -2.2299957275390625,
       "change_display": "-2.2",
       "threshold_text": "🟢 <100 ／ 🟡 100–130 ／ 🟠 130–150 ／ 🔴 >150",
       "freq": "每日",
@@ -907,7 +907,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": null,
@@ -984,7 +984,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 9.041591320072333,
@@ -1061,7 +1061,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 1.8181818181818181,
@@ -1138,7 +1138,7 @@
         "prev_edge": 5.25,
         "prev_distance": 0.34999990463256836
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 98.54809437386571,
@@ -1215,7 +1215,7 @@
         "prev_edge": 5.0,
         "prev_distance": 0.24399995803833008
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 98.72958257713249,
@@ -1250,7 +1250,7 @@
     {
       "key": "y2",
       "track": null,
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 95.28619528619528,
@@ -1319,7 +1319,7 @@
         "prev_edge": 60,
         "prev_distance": 25.599994659423828
       },
-      "stale_days": 2,
+      "stale_days": 3,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 38.27838827838828,
@@ -1388,7 +1388,7 @@
         "prev_edge": 1.0,
         "prev_distance": 0.0847
       },
-      "stale_days": 8,
+      "stale_days": 9,
       "stale_limit": 40,
       "stale": false,
       "pct_rank": 99.83050847457628,
@@ -1423,7 +1423,7 @@
     {
       "key": "usdjpy",
       "track": null,
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 78.73070325900514,
@@ -1458,7 +1458,7 @@
     {
       "key": "dxy",
       "track": null,
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 74.59749552772809,
@@ -1473,15 +1473,15 @@
       "hidden": false,
       "unit": "",
       "decimals": 2,
-      "value": 102.23100280761719,
-      "display": "102.23",
+      "value": 102.20999908447266,
+      "display": "102.21",
       "date": "2026-10-09",
       "points": 559,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": 0.09100341796875,
-      "change_display": "+0.09",
+      "change_1": 0.06999969482421875,
+      "change_display": "+0.07",
       "threshold_text": "與 30Y 同向＝正常；反向＝質變",
       "freq": "每日",
       "source_label": "DX-Y.NYB",
@@ -1495,7 +1495,7 @@
       "track": {
         "lo": 79.75,
         "hi": 105.25,
-        "marker_pct": 46.70589671415441,
+        "marker_pct": 47.45097440831801,
         "segments": [
           {
             "status": "ok",
@@ -1523,17 +1523,17 @@
           }
         ],
         "next_edge": 100,
-        "next_distance": 8.339996337890625,
+        "next_distance": 8.150001525878906,
         "prev_edge": 85,
-        "prev_distance": 6.660003662109375
+        "prev_distance": 6.849998474121094
       },
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 87.11985688729875,
       "span_years": 2.187542778918549,
       "range_text": "近 2.2 年區間第 87 百分位",
-      "distance_text": "離 $100.00 還有 $8.34",
+      "distance_text": "離 $100.00 還有 $8.15",
       "severity": 2,
       "label": "WTI 油價",
       "tier": 4,
@@ -1542,15 +1542,15 @@
       "hidden": false,
       "unit": "$",
       "decimals": 2,
-      "value": 91.66000366210938,
-      "display": "$91.66",
+      "value": 91.8499984741211,
+      "display": "$91.85",
       "date": "2026-10-09",
       "points": 559,
       "status": "watch",
       "status_label": "反覆",
       "basis": "水位",
-      "change_1": 0.17000579833984375,
-      "change_display": "+0.17",
+      "change_1": 0.3600006103515625,
+      "change_display": "+0.36",
       "threshold_text": "單日 ±5% 進盤中引信",
       "freq": "每日",
       "source_label": "CL=F ／ DCOILWTICO",
@@ -1562,7 +1562,7 @@
     {
       "key": "ndx",
       "track": null,
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 99.27272727272727,
@@ -1577,14 +1577,14 @@
       "hidden": true,
       "unit": "",
       "decimals": 0,
-      "value": 30883.1484375,
+      "value": 30883.150390625,
       "display": "30883",
       "date": "2026-10-09",
       "points": 550,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": 157.337890625,
+      "change_1": 157.33984375,
       "change_display": "+157",
       "threshold_text": "",
       "freq": "每日",
@@ -1597,7 +1597,7 @@
     {
       "key": "sox",
       "track": null,
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
       "pct_rank": 92.36363636363636,
@@ -1632,12 +1632,12 @@
     {
       "key": "n225",
       "track": null,
-      "stale_days": 1,
+      "stale_days": 2,
       "stale_limit": 7,
       "stale": false,
-      "pct_rank": 95.13108614232209,
+      "pct_rank": 96.06741573033707,
       "span_years": 2.190280629705681,
-      "range_text": "近 2.2 年區間第 95 百分位",
+      "range_text": "近 2.2 年區間第 96 百分位",
       "distance_text": "",
       "severity": 0,
       "label": "日經 225",
@@ -1647,15 +1647,15 @@
       "hidden": true,
       "unit": "",
       "decimals": 0,
-      "value": 68418.65625,
-      "display": "68419",
+      "value": 69030.921875,
+      "display": "69031",
       "date": "2026-10-09",
       "points": 534,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": -623.453125,
-      "change_display": "-623",
+      "change_1": -11.1875,
+      "change_display": "-11",
       "threshold_text": "",
       "freq": "每日",
       "source_label": "^N225",
@@ -1709,7 +1709,7 @@
         "prev_edge": null,
         "prev_distance": null
       },
-      "stale_days": 7,
+      "stale_days": 8,
       "stale_limit": 14,
       "stale": false,
       "pct_rank": 0.0,
@@ -1778,7 +1778,7 @@
         "prev_edge": 0,
         "prev_distance": 29.0
       },
-      "stale_days": 39,
+      "stale_days": 40,
       "stale_limit": 75,
       "stale": false,
       "pct_rank": null,
@@ -1813,7 +1813,7 @@
     {
       "key": "payems_level",
       "track": null,
-      "stale_days": 39,
+      "stale_days": 40,
       "stale_limit": 75,
       "stale": false,
       "pct_rank": null,
@@ -2028,7 +2028,7 @@
             "var": "dxy_pct5",
             "label": "DXY 美元指數 5 日",
             "op": "<=",
-            "current": 0.2953031507310966,
+            "current": 0.27469712396601675,
             "trigger": -1.0,
             "anchor": -0.558460424540419,
             "position": 0.0,
@@ -2420,11 +2420,7 @@
   "changes": [
     [
       "info",
-      "MOVE 燈號 警示 → 正常（100.7 → 98.5）"
-    ],
-    [
-      "info",
-      "VXTLT（MOVE 備援） 燈號 警示 → 正常（15.5 → 14.6）"
+      "與上次掃描相比沒有實質變化。"
     ]
   ],
   "tripwire_delta": {
@@ -2434,7 +2430,7 @@
   },
   "breadth": {
     "days": 30,
-    "then_date": "2026-09-10",
+    "then_date": "2026-09-11",
     "now": {
       "alarm": 2,
       "press": 1,
@@ -2446,9 +2442,9 @@
     "then": {
       "alarm": 1,
       "press": 2,
-      "watch": 5,
-      "ok": 13,
-      "lit": 8,
+      "watch": 4,
+      "ok": 14,
+      "lit": 7,
       "rated": 21
     }
   }
