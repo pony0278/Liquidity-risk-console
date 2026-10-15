@@ -368,6 +368,7 @@ def _format_readout(template, var_names, metrics):
 
 _CHANGE_METRIC = re.compile(r"^(?P<key>.+)_(?P<kind>d|pct)(?P<n>\d+)(?P<bps>_bps)?$")
 _STREAK_METRIC = re.compile(r"^(?P<key>.+)_(?P<kind>pos|up)_streak$")
+_DRAW_METRIC = re.compile(r"^(?P<key>.+)_(?P<kind>dd|ru)(?P<n>\d+)$")
 _WINDOW_WORD = {1: "單日", 5: "5 日", 20: "20 期", 60: "60 期"}
 _ANCHOR_WINDOW = 500  # 約兩年的日資料，與 pct_rank 的「近兩年」同一個口徑
 
@@ -391,11 +392,18 @@ def _describe_var(name, cfg_by_key):
         word = "連續為正" if match.group("kind") == "pos" else "連續上升"
         return {"kind": "streak", "key": match.group("key"), "cfg": cfg,
                 "label": "%s %s" % (cfg.get("label", match.group("key")), word)}
+    match = _DRAW_METRIC.match(name)
+    if match and match.group("key") in cfg_by_key:
+        cfg = cfg_by_key[match.group("key")]
+        word = "高點" if match.group("kind") == "dd" else "低點"
+        return {"kind": "draw", "key": match.group("key"), "cfg": cfg,
+                "label": "%s 自 %s 日%s" % (cfg.get("label", match.group("key")),
+                                        match.group("n"), word)}
     return {"kind": "other", "key": None, "cfg": {}, "label": name}
 
 
 def _anchor(desc, series_map, threshold):
-    if desc["kind"] in ("streak", "other"):
+    if desc["kind"] in ("streak", "draw", "other"):
         return 0.0
     series = series_map.get(desc["key"])
     if not series:
@@ -440,10 +448,42 @@ def _fmt_var(value, desc):
         if unit == "%":
             # y30_d5 這類量的原始單位是百分點；讀者看的是 bps
             return "%+.0f bps" % (value * 100.0)
+        if unit == "bps":
+            return "%+.*f bps" % (decimals, value)
         return _fmt_signed(value, decimals, unit)
     if desc["kind"] == "streak":
         return "%d %s" % (round(value), _period_word(cfg))
+    if desc["kind"] == "draw":
+        return "%+.1f%%" % value
     return "%.2f" % value
+
+
+_OP_WORD = {">": ">", ">=": "≥", "<": "<", "<=": "≤"}
+
+
+def describe_terms(expr, values, cfg_by_key):
+    """把規則拆成可以給人讀的條件：「CCC OAS 20 期 +182 bps（≥ +75 bps）」。
+
+    門檻文字從規則本身產生，不另外寫一份——跟刻度同一個理由。拆不動的規則
+    回傳 None。
+    """
+    parsed = comparison_terms(expr)
+    if parsed is None:
+        return None
+    mode, terms = parsed
+    out = []
+    for name, op, threshold in terms:
+        desc = _describe_var(name, cfg_by_key)
+        current = values.get(name)
+        out.append({
+            "var": name,
+            "label": desc["label"],
+            "current_text": _fmt_var(current, desc),
+            "rule_text": "%s %s" % (_OP_WORD[op], _fmt_var(threshold, desc)),
+            "met": None if current is None else evaluate("%s %s %r" % (name, op, threshold),
+                                                         {name: current}),
+        })
+    return {"mode": mode, "terms": out}
 
 
 def _position(current, anchor, op, threshold):

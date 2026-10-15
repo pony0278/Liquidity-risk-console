@@ -76,6 +76,20 @@ h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
 .lstep.here i{background:currentColor;border-color:currentColor}
 .lstep.here em{color:currentColor;font-weight:700}
 
+/* ---------- 預警：五格，亮幾格一眼看得到。亮／暗是明度差，色盲也分得出來 ---------- */
+.ewbox{margin:16px 0 22px;max-width:460px}
+.ewrow{display:flex;gap:4px}
+.ewc{flex:1;min-width:0;text-align:center}
+.ewc i{display:block;height:14px;background:var(--paper-2);border:1px solid var(--rule)}
+.ewc.on i{background:var(--watch);border-color:var(--watch)}
+.ewc.unk i{background:repeating-linear-gradient(90deg,var(--paper-2) 0 4px,transparent 4px 8px)}
+.ewc em{display:block;font-family:var(--mono);font-style:normal;font-size:10px;color:var(--ink-faint);
+  margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ewc.on em{color:var(--watch);font-weight:700}
+.ewrec{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+/* 窄螢幕整段「→ 成功…」一起換行，不要把最後一個數字孤零零擠到下一行 */
+.ewrec span{white-space:nowrap}
+
 /* ---------- 距下一階：左端＝平常，右端（紅線）＝觸發 ---------- */
 .lnext{margin-top:22px;max-width:460px}
 .nrow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:3px 10px;align-items:center;

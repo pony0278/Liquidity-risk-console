@@ -122,6 +122,20 @@ h1{font-family:var(--mono);font-size:clamp(20px,3vw,29px);font-weight:700;
 .lstep.here i{background:currentColor;border-color:currentColor}
 .lstep.here em{color:currentColor;font-weight:700}
 
+/* ---------- 預警：五格，亮幾格一眼看得到。亮／暗是明度差，色盲也分得出來 ---------- */
+.ewbox{margin:16px 0 22px;max-width:460px}
+.ewrow{display:flex;gap:4px}
+.ewc{flex:1;min-width:0;text-align:center}
+.ewc i{display:block;height:14px;background:var(--paper-2);border:1px solid var(--rule)}
+.ewc.on i{background:var(--watch);border-color:var(--watch)}
+.ewc.unk i{background:repeating-linear-gradient(90deg,var(--paper-2) 0 4px,transparent 4px 8px)}
+.ewc em{display:block;font-family:var(--mono);font-style:normal;font-size:10px;color:var(--ink-faint);
+  margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ewc.on em{color:var(--watch);font-weight:700}
+.ewrec{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+/* 窄螢幕整段「→ 成功…」一起換行，不要把最後一個數字孤零零擠到下一行 */
+.ewrec span{white-space:nowrap}
+
 /* ---------- 距下一階：左端＝平常，右端（紅線）＝觸發 ---------- */
 .lnext{margin-top:22px;max-width:460px}
 .nrow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:3px 10px;align-items:center;
@@ -356,9 +370,13 @@ _JS = r"""
     el("hero-n").textContent = "第 " + snap.level + " 階";
     el("hero-n").className = "hero-n " + cls(snap.overall_status);
     el("hero-title").textContent = (snap.verdict && snap.verdict.headline) || "";
+    var ew = snap.early_warning;
+    // 「沒有任何升級條件成立」在預警亮著的時候會被讀成「沒事」——這正是
+    // 9/25 到 10/12 那段的問題：水位沒過線，速度與背離已經全亮。
     el("hero-sub").textContent = fired.length
       ? "有 " + fired.length + " 條升級條件成立"
-      : "沒有任何升級條件成立";
+      : (ew && ew.active ? "沒有升級條件成立，但預警已亮 " + ew.count + "／" + ew.total
+        : "沒有任何升級條件成立");
     var paras = (snap.verdict && snap.verdict.paragraphs) || [];
     el("hero-paras").innerHTML = paras.map(function (p) {
       return "<p>" + esc(p) + "</p>";
@@ -379,6 +397,45 @@ _JS = r"""
           + (r.readout ? " · " + esc(r.readout) : "") + '">'
           + "<i></i><em>" + esc(LADDER_SHORT[r.level] || r.title) + "</em></div>";
       }).join("") + "</div>";
+  }
+
+  // 預警：水位越過門檻之前，速度與背離會先亮。門檻與現值都在 Python 那邊
+  // 從規則本身算好，這裡只畫。成績連同誤報一起列——沒有誤報紀錄的預警，
+  // 讀的人無從判斷它值多少。
+  function shortDate(d) {
+    return d ? parseInt(d.slice(5, 7), 10) + "/" + parseInt(d.slice(8, 10), 10) : "";
+  }
+  function termsText(terms) {
+    if (!terms) return "規則無法拆解";
+    return terms.terms.map(function (t) {
+      return t.label + " " + t.current_text + "（" + t.rule_text + "）";
+    }).join(terms.mode === "all" ? " 且 " : " 或 ");
+  }
+  function renderEarlyWarning(snap) {
+    var ew = snap.early_warning;
+    if (!ew) { el("early-warning").innerHTML = ""; return; }
+    var cells = ew.signals.map(function (s) {
+      var cls = s.state === true ? " on" : (s.state === null ? " unk" : "");
+      var tip = s.code + "：" + s.desc + " · " + termsText(s.terms)
+        + (s.since ? " · 自 " + s.since + " 起" : "");
+      return '<div class="ewc' + cls + '" title="' + esc(tip) + '"><i></i><em>'
+        + esc(s.code) + "</em></div>";
+    }).join("");
+    var head = ew.active
+      ? '<b class="t-watch">預警 ' + ew.count + "／" + ew.total + "</b> · 自 "
+        + esc(shortDate(ew.since)) + " 起（第 " + ew.days + " 個交易日）"
+      : "預警 " + (ew.count == null ? "—" : ew.count) + "／" + ew.total + " · 未啟動";
+    var r = ew.record, sm = r.summary;
+    var early = sm.hit + sm.miss + sm.pending;
+    var how = "回測自 " + r.from + "：亮起時" + r.calm_label + "才算預警，之後 " + r.window
+      + " 個交易日內" + r.outcome_label + "算成功。另有 " + sm.concurrent
+      + " 次亮起時股市已經在跌，只算確認。";
+    el("early-warning").innerHTML =
+      '<div class="anno" style="margin-bottom:6px">' + head + "</div>"
+      + '<div class="ewrow">' + cells + "</div>"
+      + '<div class="ewrec" title="' + esc(how) + '">過去紀錄：股市還在高點時亮起 ' + early
+      + " 次 <span>→ 成功 " + sm.hit + " · 誤報 " + sm.miss + " · 觀察中 " + sm.pending
+      + "</span></div>";
   }
 
   // 距下一階：每一階攤成一條線，左端是平常的樣子（近兩年中位數，或同一種
@@ -679,6 +736,7 @@ _JS = r"""
 
   function render(snap, series) {
     renderHeader(snap);
+    renderEarlyWarning(snap);
     renderLadderMeter(snap);
     renderNextRungs(snap);
     renderBreadth(snap);
@@ -883,6 +941,7 @@ def render_public_html(snapshot, series_payload, changes, repo_url="", site=None
       <div class="hero" id="hero-sub">載入中…</div>
       <span class="hero-n" id="hero-n">—</span>
       <div class="hero-title" id="hero-title"></div>
+      <div id="early-warning" class="ewbox"></div>
       <div id="ladder-meter"></div>
       <div id="next-rungs" class="lnext"></div>
     </div>

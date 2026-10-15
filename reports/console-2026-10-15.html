@@ -415,6 +415,12 @@ td.bd .thx{display:block;font-family:var(--mono);font-size:10.5px;color:var(--in
   margin-top:6px;line-height:1.5}
 body.show-notes td.bd .thx{display:block!important}
 
+/* ---------- 預警層 ---------- */
+.ew-head{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.04em;
+  padding:12px 0 10px;border-top:1px solid var(--rule)}
+.ew-head b{font-size:20px}
+.ew-record{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);padding:16px 0 8px}
+
 </style>
 </head>
 <body>
@@ -468,6 +474,7 @@ body.show-notes td.bd .thx{display:block!important}
   <div>
     <span class="tag t-alarm">第 1 階 · 折現率／估值重定價</span>
     <h2>沒有流動性危機。壓力集中在利率／匯率，性質是重定價。</h2>
+    <p>預警 3／5，自 2026-09-23 起（第 16 個交易日）：CCC 速度、HY 速度、債市波動。這幾條看的是變化的速度、信用和股市有沒有走散，不是水位——水位型的門檻還沒越過，代表惡化正在進行、還沒被確認。</p>
     <p>資金水管仍寬鬆——SOFR 在 IORB 之下 1 bps，隔夜擔保融資成本沒有緊張跡象。這是判斷「不是流動性事件」最乾淨的證據。</p>
     <p>長端在 5.525%（單日 -4bps），曲線走平（2s30s 77 bps，單日 -3bps）。看曲線形狀而非單一水位：短端跌而長端噴是期限溢價，兩者同漲才是升息預期。</p>
     <p>信用與波動率：HY OAS 316 bps（寬鬆）、VIX 16.87、MOVE 99.1。信用是所有崩盤的領先指標，波動率是事件驅動——兩者同時轉向才代表事件在擴散。</p>
@@ -483,6 +490,38 @@ body.show-notes td.bd .thx{display:block!important}
     </dl>
   </div>
 </div>
+
+<section>
+  <div class="shead"><h3>預警</h3><span class="anno">EARLY WARNING · 速度與背離，比門檻早</span><span class="anno">SECTION W</span></div>
+  <p class="lede note-only">水位型的引信要等越過門檻才亮，本質上是確認。這一層看變化的速度、信用和股市有沒有走散。門檻都在 rules.json 的 early_warning，是整數，沒有拿過去的資料去調。回測用同一套公式重跑整段歷史：亮起時NDX 離 60 日高點不到 3%才算預警；之後 30 個交易日內NDX 自 60 日高點跌破 −5%算成功。信用利差的實際公布比資料日期晚 1–2 天，回測沒有扣掉這段時差。</p>
+  <div class="ew-head t-watch">預警 <b>3</b>／5 · 自 2026-09-23 起（第 16 個交易日）</div>
+  <div class="wrap"><table>
+    <thead><tr><th>訊號</th><th>狀態</th><th>現在（門檻）</th><th>自</th><th class="note note-only">意義</th></tr></thead>
+    <tbody>
+      <tr><td class="k">CCC 速度</td><td class="t-watch">● 亮</td><td>CCC OAS 20 期 +182 bps（≥ +75 bps）</td><td class="dt">2026-09-24</td><td class="note note-only">最弱企業的借錢成本在加速惡化</td></tr>
+      <tr><td class="k">HY 速度</td><td class="t-watch">● 亮</td><td>HY OAS 20 期 +40 bps（≥ +30 bps）</td><td class="dt">2026-09-25</td><td class="note note-only">整體垃圾債開始跟上</td></tr>
+      <tr><td class="k">股債背離</td><td class="t-ok">○</td><td>CCC OAS 20 期 +182 bps（≥ +50 bps） 且 Nasdaq 100 自 60 日高點 -4.1%（&gt; -3.0%）</td><td class="dt">—</td><td class="note note-only">信用在惡化，股市還沒反應</td></tr>
+      <tr><td class="k">長端速度</td><td class="t-ok">○</td><td>30Y 殖利率 20 期 +18 bps（≥ +25 bps）</td><td class="dt">—</td><td class="note note-only">折現率在加速上升</td></tr>
+      <tr><td class="k">債市波動</td><td class="t-watch">● 亮</td><td>MOVE 20 期 +15.4（≥ +15.0）</td><td class="dt">2026-09-23</td><td class="note note-only">債市的恐慌在升溫</td></tr>
+    </tbody>
+  </table></div>
+  <div class="ew-record">回測紀錄（2024-08-29 起）：成功 2 · 誤報 1 · 觀察中 1 · 確認 6</div>
+  <div class="wrap"><table>
+    <thead><tr><th>亮起</th><th>結束</th><th>最多幾條</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr><td class="dt">2026-09-23</td><td class="dt">進行中</td><td>5</td><td class="">觀察中：已過 15／30 個交易日</td></tr>
+      <tr><td class="dt">2026-07-31</td><td class="dt">2026-07-31</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2026-05-18</td><td class="dt">2026-05-18</td><td>2</td><td class="t-watch">提前預警成功：14 個交易日後（2026-06-05）</td></tr>
+      <tr><td class="dt">2026-03-03</td><td class="dt">2026-03-30</td><td>3</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-11-21</td><td class="dt">2025-11-24</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-11-03</td><td class="dt">2025-11-04</td><td>3</td><td class="t-watch">提前預警成功：10 個交易日後（2025-11-17）</td></tr>
+      <tr><td class="dt">2025-10-10</td><td class="dt">2025-10-22</td><td>3</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-03-06</td><td class="dt">2025-04-30</td><td>4</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-01-07</td><td class="dt">2025-01-14</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2024-10-07</td><td class="dt">2024-11-01</td><td>2</td><td class="">誤報</td></tr>
+    </tbody>
+  </table></div>
+</section>
 
 <section>
   <div class="shead"><h3>本次變化</h3><span class="anno">DELTA · 與上次掃描相比</span><span class="anno">SECTION 0</span></div>

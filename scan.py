@@ -26,6 +26,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from lrconsole import diff as diff_mod  # noqa: E402
+from lrconsole import early_warning as early_warning_mod  # noqa: E402
 from lrconsole import history as history_mod  # noqa: E402
 from lrconsole import notify as notify_mod  # noqa: E402
 from lrconsole import public_page  # noqa: E402
@@ -138,6 +139,11 @@ def self_test(indicator_cfg, rules_cfg, log):
 
     for wire in rules_cfg.get("tripwires", []):
         check(wire.get("expr"), "引信 %s" % wire.get("id"))
+    early = rules_cfg.get("early_warning") or {}
+    for signal in early.get("signals", []):
+        check(signal.get("expr"), "預警 %s" % signal.get("id"))
+    for field in ("calm_expr", "outcome_expr"):
+        check((early.get("record") or {}).get(field), "預警回測 %s" % field)
     for rung in rules_cfg.get("ladder", []):
         check(rung.get("expr"), "階梯 L%s" % rung.get("level"))
         check_vars = set(rung.get("readout_vars", [])) - names
@@ -210,6 +216,19 @@ def pick_source(fetcher, key, indicator, today=None):
     return failure or FetchResult(key, ok=False, detail="沒有可用的來源"), 0, failure
 
 
+def early_warning_onset(current, previous):
+    """這次掃描是不是一波新預警的起點——要開 issue 的那一刻。
+
+    看的是「這一波」而不是「亮著」：預警可能連亮三週，每天都開一張 issue
+    講的是同一件事。上一份快照沒有預警欄位（剛上線、或第一次掃描）時，
+    亮著的算新的，跟引信的處理一致。
+    """
+    if not current or not current.get("active"):
+        return False
+    before = (previous or {}).get("early_warning") or {}
+    return not before.get("active") or before.get("since") != current.get("since")
+
+
 def prune_dated_reports(out_dir, keep, log):
     """只留最近 keep 天的帶日期存檔。
 
@@ -248,13 +267,16 @@ def main(argv=None):
     previous = history_mod.load_json(os.path.join(args.out_dir, "latest.json"))
     inherited_changes = None
     inherited_delta = None
+    inherited_onset = None
     if args.rebuild:
         args.no_fetch = True
         if previous and previous.get("scan_time"):
             # 重畫時 previous 就是這份快照自己，比出來的引信變化必然全空——
             # 那會把「今天有新引信亮起」抹成「沒事」，於是發佈頁面的那一步
-            # 反而消掉了掃描剛剛偵測到的警報。沿用，不重算。
+            # 反而消掉了掃描剛剛偵測到的警報。沿用，不重算。預警的「新一波
+            # 起點」是同一個道理。
             inherited_delta = previous.get("tripwire_delta")
+            inherited_onset = (previous.get("early_warning") or {}).get("new_onset")
             # 重畫頁面不是一次新的掃描：時間戳與「與上次相比」都必須沿用，
             # 否則每次改模板都會謊報掃描時間，並把真正的變更清單洗掉。
             scan_time = previous["scan_time"]
@@ -326,6 +348,22 @@ def main(argv=None):
 
     log("\n[4/5] 套用規則")
     snapshot = build_snapshot(indicator_cfg, rules_cfg, series_map, notes, scan_time, data_notes)
+    # 預警層要在比對「與上次的差異」之前算好，預警啟動／解除才會進變更清單、
+    # 摘要與推播。
+    ew = early_warning_mod.build(rules_cfg, indicator_cfg, series_map)
+    if ew:
+        # 重畫不是掃描：沒有可沿用的值時寧可說「不是新的」，也不能憑空宣稱
+        # 剛剛有一波預警開始——跟變更清單、引信變化同一個原則。
+        ew["new_onset"] = (bool(inherited_onset) if args.rebuild
+                           else early_warning_onset(ew, previous))
+        if ew["active"]:
+            lit = [s["code"] for s in ew["signals"] if s["state"]]
+            # 放在判讀的第一段：標題寫的「沒有流動性危機」是水位，這一段是方向
+            snapshot["verdict"]["paragraphs"].insert(0, (
+                "預警 %d／%d，自 %s 起（第 %d 個交易日）：%s。這幾條看的是變化的速度、"
+                "信用和股市有沒有走散，不是水位——水位型的門檻還沒越過，代表惡化正在進行、"
+                "還沒被確認。" % (ew["count"], ew["total"], ew["since"], ew["days"], "、".join(lit))))
+    snapshot["early_warning"] = ew
     if inherited_changes is not None:
         changes = inherited_changes
         log("  （重畫模式：沿用上一份快照的變更清單）")
@@ -370,6 +408,11 @@ def main(argv=None):
                  if r["level"] > snapshot["level"] and r.get("proximity")]
     if distances:
         log("  距下一階：%s" % " · ".join(distances))
+    if ew:
+        log("  預警：%s／%d%s%s" % (
+            "—" if ew["count"] is None else ew["count"], ew["total"],
+            "，自 %s 起（第 %d 個交易日）" % (ew["since"], ew["days"]) if ew["active"] else "",
+            "  ← 新一波" if ew.get("new_onset") else ""))
 
     log("\n[5/5] 產出報表")
     date_tag = scan_time[:10]
@@ -439,6 +482,7 @@ def main(argv=None):
     # 要推的是「集合變了」——新亮、解除，或有 alert／warn 等級的其他變化。
     should_notify = args.notify == "always" or (
         args.notify == "auto" and (delta["new"] or delta["cleared"]
+                                   or (ew and ew.get("new_onset"))
                                    or any(s in ("alert", "warn") for s, _ in changes)))
     if should_notify:
         ok, detail = notify_mod.send_webhook(notify_mod.build_message(snapshot, changes))

@@ -44,6 +44,51 @@
       "desc": "進入去槓桿階的門票。MOVE 通常先動。"
     }
   ],
+  "early_warning": {
+    "_note": "水位型的引信（HY > 350、VIX > 30）要等越過門檻才亮，本質上是確認。這一層看「速度」與「背離」：變化得多快、信用和股市是不是走散了。2026/9/23 起這幾條就陸續亮了，比 10/14 股市補跌早三週，而當時水位型的引信一條都沒亮。門檻是整數，沒有拿過去的資料去調——兩年的資料只有幾次樣本，調出來的只會是剛好符合過去的假規律。",
+    "min_signals": 2,
+    "merge_gap": 5,
+    "record": {
+      "_note": "回測用的定義：預警亮起當天 NDX 還在高點附近（calm），之後 window 個交易日內出現 outcome 才算提前預警成功。亮起時股市已經在跌的，只算確認。",
+      "calm_expr": "ndx_dd60 > -3",
+      "calm_label": "NDX 離 60 日高點不到 3%",
+      "outcome_expr": "ndx_dd60 <= -5",
+      "outcome_label": "NDX 自 60 日高點跌破 −5%",
+      "window": 30
+    },
+    "signals": [
+      {
+        "id": "ccc_speed",
+        "code": "CCC 速度",
+        "desc": "最弱企業的借錢成本在加速惡化",
+        "expr": "ccc_oas_d20 >= 75"
+      },
+      {
+        "id": "hy_speed",
+        "code": "HY 速度",
+        "desc": "整體垃圾債開始跟上",
+        "expr": "hy_oas_d20 >= 30"
+      },
+      {
+        "id": "divergence",
+        "code": "股債背離",
+        "desc": "信用在惡化，股市還沒反應",
+        "expr": "ccc_oas_d20 >= 50 and ndx_dd60 > -3"
+      },
+      {
+        "id": "long_speed",
+        "code": "長端速度",
+        "desc": "折現率在加速上升",
+        "expr": "y30_d20_bps >= 25"
+      },
+      {
+        "id": "bondvol_speed",
+        "code": "債市波動",
+        "desc": "債市的恐慌在升溫",
+        "expr": "move_d20 >= 15"
+      }
+    ]
+  },
   "ladder": [
     {
       "level": 1,

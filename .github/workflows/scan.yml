@@ -82,12 +82,19 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           try:
-              delta = json.load(open("reports/latest.json")).get("tripwire_delta") or {}
+              snap = json.load(open("reports/latest.json"))
           except Exception:
-              delta = {}
+              snap = {}
+          delta = snap.get("tripwire_delta") or {}
           new = delta.get("new") or []
           print("new_count=%d" % len(new))
           print("new_codes=%s" % "、".join(new))
+          # 預警：只在「新一波」的起點開 issue，不是每天亮著就開
+          ew = snap.get("early_warning") or {}
+          lit = [s["code"] for s in ew.get("signals", []) if s.get("state")]
+          print("ew_new=%d" % (1 if ew.get("new_onset") else 0))
+          print("ew_text=%s／%s（%s），自 %s 起" % (
+              ew.get("count"), ew.get("total"), "、".join(lit), ew.get("since")))
           PY
 
       - name: 提交報表與歷史
@@ -129,6 +136,21 @@ jobs:
             --title "⚠ 新引信觸發：${NEW_CODES}（$(date -u +%Y-%m-%d)）" \
             --body-file "$summary" \
             --label "risk-scan" || echo "開 issue 失敗，略過（不影響掃描結果）。"
+
+      # 引信是「越過門檻」，預警是「速度與背離」。後者會早好幾週：2026/9/23
+      # 這一步會開一張 issue，比 10/14 股市補跌早三週，而當時引信一條都沒亮。
+      - name: 新一波預警時開 issue
+        if: steps.delta.outputs.ew_new == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EW_TEXT: ${{ steps.delta.outputs.ew_text }}
+        run: |
+          summary=$(ls -t reports/summary-*.md | head -1)
+          gh label create "early-warning" --color F7CF55 --description "預警層：速度與背離訊號" 2>/dev/null || true
+          gh issue create \
+            --title "⚠ 預警啟動：${EW_TEXT}" \
+            --body-file "$summary" \
+            --label "early-warning" || echo "開 issue 失敗，略過（不影響掃描結果）。"
 
   publish:
     # 掃描完（或改完模板）就把 reports/ 發佈到 GitHub Pages。

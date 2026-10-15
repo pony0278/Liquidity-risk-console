@@ -1211,6 +1211,187 @@ class LadderDisplayTests(unittest.TestCase):
         self.assertIn("距下一階", self.summary)
 
 
+class EarlyWarningTests(unittest.TestCase):
+    """預警層：速度與背離。最重要的一條是「回測說的話＝這台控制盤當天會說的話」。"""
+
+    @staticmethod
+    def _dated(values, start="2025-01-06"):
+        base = datetime.strptime(start, "%Y-%m-%d")
+        return Series([((base + timedelta(days=i)).strftime("%Y-%m-%d"), float(v))
+                       for i, v in enumerate(values)])
+
+    def test_history_matches_live_metrics_on_every_date(self):
+        """回測若用了不同的公式，它驗證的就不是這台控制盤。逐日、逐個變數比對：
+        把序列截到那一天，用即時的 build_metrics 算一次，兩者必須一樣。"""
+        from lrconsole.early_warning import metric_history
+        import math
+        values = [5 + 3 * math.sin(i / 4.0) + (0 if i % 17 else -9) for i in range(80)]
+        values[30] = 0.0  # pct 遇到 0 要回 None
+        for unit in ("%", ""):
+            series = self._dated(values)
+            names = [n for n in build_metrics({"x": series}, {"x": unit})]
+            for name in names:
+                hist = metric_history(name, series, unit, key="x")
+                for i in range(len(values)):
+                    live = build_metrics({"x": Series(series.points[:i + 1])}, {"x": unit}).get(name)
+                    if live is None:
+                        self.assertIsNone(hist[i], "%s @%d（unit=%r）" % (name, i, unit))
+                    else:
+                        self.assertAlmostEqual(hist[i], live, places=9,
+                                               msg="%s @%d（unit=%r）" % (name, i, unit))
+
+    def test_names_the_live_engine_lacks_stay_unknown(self):
+        from lrconsole.early_warning import metric_history
+        series = self._dated(range(1, 90))
+        for name in ("x_d10", "x_dd30", "x_pct5_bps", "x_foo"):
+            self.assertTrue(all(v is None for v in metric_history(name, series, "%", key="x")),
+                            "%s 即時判讀是未知，回測不能算出數字" % name)
+
+    def test_episodes_merge_short_gaps_only(self):
+        from lrconsole.early_warning import find_episodes
+        lit = [0, 2, 2, 0, 0, 0, 0, 0, 2, None, 0, 0, 0, 0, 0, 0, 0, 3]
+        # 第 2 到第 8 天之間斷了 5 天，算同一波；之後斷 8 天，算新的一波
+        self.assertEqual(find_episodes(lit, 2, 5), [(1, 8), (17, 17)])
+
+    def test_classification(self):
+        from lrconsole.early_warning import _classify
+        axis = ["d%02d" % i for i in range(40)]
+        calm, quiet = [True] * 40, [False] * 40
+        self.assertEqual(_classify(0, axis, [False] * 40, quiet, 30)["result"], "concurrent",
+                         "亮起時股市已經在跌，只能算確認")
+        hit = list(quiet)
+        hit[12] = True
+        self.assertEqual(_classify(0, axis, calm, hit, 30), {"result": "hit", "lead": 12,
+                                                             "hit_date": "d12"})
+        self.assertEqual(_classify(0, axis, calm, quiet, 30)["result"], "miss")
+        self.assertEqual(_classify(25, axis, calm, quiet, 30)["result"], "pending",
+                         "窗口還沒走完不能算誤報")
+
+    def test_weekends_are_not_evaluation_days(self):
+        """FRED 的 ICE 利差在月底會標週末日期；把週六當判讀日，就會出現「起點是週六」的一波。"""
+        from lrconsole.early_warning import _replay
+        series = self._dated(range(1, 30), start="2026-02-23")  # 含 2/28（週六）、3/1（週日）
+        axis, _, _ = _replay(["x_d1 > 0"], {"x": series}, {"x": ""})
+        self.assertNotIn("2026-02-28", axis)
+        self.assertNotIn("2026-03-01", axis)
+
+    def test_missing_series_means_unknown_not_quiet(self):
+        """抓不到 MOVE 時，「5 條只亮 2 條」是假的——今天的數字必須是未知。"""
+        from lrconsole import early_warning
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "history.csv")
+            write_history(path, STRESS)
+            ind, rules, _ = scan.load_configs(os.path.join(BASE_DIR, "config"))
+            series_map, _ = evaluate_mod.resolve_series(ind, {}, load_history(path),
+                                                        record_failures=False)
+            series_map.pop("move")
+            ew = early_warning.build(rules, ind, series_map)
+            self.assertIsNone(ew["count"])
+            self.assertFalse(ew["active"])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_stress_lights_it_and_onset_fires_once(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            _, first, out_dir = run_scan(tmp, STRESS)
+            ew = first["early_warning"]
+            self.assertTrue(ew["active"])
+            self.assertGreaterEqual(ew["count"], 2)
+            self.assertTrue(ew["new_onset"], "第一次看到這一波：要通知")
+            self.assertTrue(first["verdict"]["paragraphs"][0].startswith("預警 "),
+                            "判讀第一段要先講方向")
+
+            _, second, _ = run_scan(tmp, STRESS)
+            self.assertFalse(second["early_warning"]["new_onset"], "同一波不重複通知")
+
+            scan.main(["--config-dir", os.path.join(BASE_DIR, "config"),
+                       "--data-dir", os.path.join(tmp, "data"), "--out-dir", out_dir,
+                       "--rebuild", "--notify", "never", "--quiet"])
+            with open(os.path.join(out_dir, "latest.json"), encoding="utf-8") as handle:
+                rebuilt = json.load(handle)
+            self.assertFalse(rebuilt["early_warning"]["new_onset"],
+                             "重畫沿用上一份，不能憑空宣稱有新的一波")
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_todays_state_matches_live_evaluation(self):
+        """首屏的「今天亮幾條」必須跟直接拿即時變數判讀的結果一樣。"""
+        from lrconsole import early_warning
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "history.csv")
+            write_history(path, STRESS)
+            ind, rules, _ = scan.load_configs(os.path.join(BASE_DIR, "config"))
+            series_map, _ = evaluate_mod.resolve_series(ind, {}, load_history(path),
+                                                        record_failures=False)
+            metrics = build_metrics(series_map, {i["key"]: i.get("unit", "") for i in ind})
+            ew = early_warning.build(rules, ind, series_map)
+            for signal in ew["signals"]:
+                self.assertEqual(signal["state"], evaluate(signal["expr"], metrics), signal["id"])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_calm_scenario_stays_quiet(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, _ = run_scan(tmp, CALM)
+            self.assertFalse(snapshot["early_warning"]["active"])
+            self.assertFalse(snapshot["early_warning"]["new_onset"])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_change_list_reports_onset_growth_and_clear(self):
+        def ew(active, count, since, lit):
+            return {"active": active, "count": count, "total": 5, "since": since,
+                    "signals": [{"code": c, "state": True} for c in lit]}
+        onset = diff_mod._early_warning_changes(ew(True, 2, "2026-09-23", ["A", "B"]), None)
+        self.assertEqual(onset[0][0], "alert")
+        self.assertIn("自 2026-09-23 起", onset[0][1])
+        grew = diff_mod._early_warning_changes(ew(True, 3, "2026-09-23", ["A", "B", "C"]),
+                                               ew(True, 2, "2026-09-23", ["A", "B"]))
+        self.assertEqual(grew[0][0], "warn")
+        self.assertIn("新亮：C", grew[0][1])
+        cleared = diff_mod._early_warning_changes(ew(False, 1, None, ["A"]),
+                                                  ew(True, 2, "2026-09-23", ["A", "B"]))
+        self.assertEqual(cleared[0][0], "info")
+        self.assertEqual(diff_mod._early_warning_changes(ew(True, 2, "2026-09-23", ["A", "B"]),
+                                                         ew(True, 2, "2026-09-23", ["A", "B"])), [])
+
+    def test_pages_summary_and_workflow_carry_it(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            _, snapshot, out_dir = run_scan(tmp, STRESS)
+
+            def read(name):
+                with open(os.path.join(out_dir, name), encoding="utf-8") as handle:
+                    return handle.read()
+            index, console = read("index.html"), read("console.html")
+            summary = read("summary-%s.md" % snapshot["scan_time"][:10])
+            self.assertIn('id="early-warning"', index)
+            self.assertIn("renderEarlyWarning(snap)", index)
+            self.assertIn("SECTION W", console)
+            self.assertIn("回測紀錄", console)
+            self.assertIn("**預警**", summary)
+        finally:
+            shutil.rmtree(tmp)
+        with open(os.path.join(BASE_DIR, ".github", "workflows", "scan.yml"),
+                  encoding="utf-8") as handle:
+            workflow = handle.read()
+        self.assertIn("steps.delta.outputs.ew_new == '1'", workflow,
+                      "issue 只在新一波的起點開，不是每天亮著就開")
+
+    def test_self_test_checks_early_warning_rules(self):
+        rules = {"tripwires": [], "ladder": [], "chains": [], "crowding": [],
+                 "early_warning": {"signals": [{"id": "bad", "expr": "nope_d20 > 1"}],
+                                   "record": {"outcome_expr": "also_nope < 0"}}}
+        indicators = [{"key": "x", "label": "X", "sources": [{"provider": "fred", "id": "X"}]}]
+        problems = scan.self_test(indicators, rules, lambda *a: None)
+        self.assertTrue(any("預警 bad" in p for p in problems), problems)
+        self.assertTrue(any("outcome_expr" in p for p in problems), problems)
+
+
 class DarkThemeTests(unittest.TestCase):
     """深色主題：顏色全部集中在 :root，兩份樣式表數值一致，字色都讀得到。"""
 

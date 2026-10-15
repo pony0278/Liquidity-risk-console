@@ -51,6 +51,34 @@ def tripwire_delta(current, previous):
             "ongoing": names(now & before)}
 
 
+def _lit_codes(ew):
+    return [s["code"] for s in (ew or {}).get("signals", []) if s.get("state")]
+
+
+def _early_warning_changes(now, before):
+    """預警層的變化。起點（新一波）是 alert，因為那正是要提早知道的那一刻；
+    同一波裡多亮一條是 warn，少亮或解除是 info。"""
+    if not now:
+        return []
+    before = before or {}
+    lit_now, lit_before = _lit_codes(now), _lit_codes(before)
+    if now.get("active") and (not before.get("active") or before.get("since") != now.get("since")):
+        return [("alert", "預警啟動：%d／%d（%s），自 %s 起" % (
+            now["count"], now["total"], "、".join(lit_now), now["since"]))]
+    if before.get("active") and not now.get("active"):
+        return [("info", "預警解除（現在 %s／%d）" % (
+            "—" if now.get("count") is None else now["count"], now["total"]))]
+    if now.get("active") and now.get("count") != before.get("count"):
+        added = [c for c in lit_now if c not in lit_before]
+        gone = [c for c in lit_before if c not in lit_now]
+        detail = "；".join(t for t in ("新亮：" + "、".join(added) if added else "",
+                                       "熄滅：" + "、".join(gone) if gone else "") if t)
+        return [("warn" if now["count"] > (before.get("count") or 0) else "info",
+                 "預警 %s／%d → %d／%d（%s）" % (before.get("count"), now["total"], now["count"],
+                                               now["total"], detail))]
+    return []
+
+
 def diff_snapshots(current, previous):
     """回傳 [(severity, text), ...]，severity 為 alert／warn／info。"""
     if not previous:
@@ -79,6 +107,9 @@ def diff_snapshots(current, previous):
             changes.append(("info", "引信解除：%s" % wire["code"]))
         elif after is None:
             changes.append(("warn", "引信無法判定（資料缺）：%s" % wire["code"]))
+
+    changes += _early_warning_changes(current.get("early_warning"),
+                                      previous.get("early_warning"))
 
     prev_chains = _index(previous, "chains", "id")
     for chain in current.get("chains", []):
@@ -146,6 +177,20 @@ def render_markdown_summary(snapshot, changes):
         "**判定**：第 %d 階 · %s" % (snapshot["level"], snapshot["verdict"]["headline"]),
         "",
     ]
+    # 預警放在最前面：階數是水位，這一行是方向。
+    ew = snapshot.get("early_warning")
+    if ew:
+        if ew.get("active"):
+            lines += ["**預警**：%d／%d，自 %s 起（第 %d 個交易日）——%s" % (
+                ew["count"], ew["total"], ew["since"], ew["days"], "、".join(_lit_codes(ew))), ""]
+        else:
+            lines += ["**預警**：%s／%d（未啟動，要 %d 條）" % (
+                "—" if ew.get("count") is None else ew["count"], ew["total"], ew["min_signals"]), ""]
+        summary = ew["record"]["summary"]
+        lines += ["回測（%s 起，%s 時亮起才算預警）：成功 %d · 誤報 %d · 觀察中 %d；"
+                  "另有 %d 次亮起時股市已經在跌（只算確認）" % (
+                      ew["record"]["from"], ew["record"]["calm_label"], summary["hit"],
+                      summary["miss"], summary["pending"], summary["concurrent"]), ""]
     # 同一個階也有輕重——光寫「第 1 階」，8 月初和 10 月看起來一模一樣。
     breadth = snapshot.get("breadth")
     if breadth and breadth.get("now"):

@@ -384,6 +384,76 @@ def _chains(snapshot):
         '</section>' % "\n".join(blocks))
 
 
+_RESULT_TEXT = {"hit": "提前預警成功", "miss": "誤報", "pending": "觀察中",
+                "concurrent": "確認（亮起時股市已在跌）"}
+
+
+def _terms_text(terms):
+    if not terms:
+        return "規則無法拆解"
+    joiner = " 且 " if terms["mode"] == "all" else " 或 "
+    return joiner.join("%s %s（%s）" % (t["label"], t["current_text"], t["rule_text"])
+                       for t in terms["terms"])
+
+
+def _early_warning(snapshot):
+    """預警層：速度與背離。完整的回測紀錄放在這裡，包括誤報——工程視圖不
+    挑好看的給人看。"""
+    ew = snapshot.get("early_warning")
+    if not ew:
+        return ""
+    rows = []
+    for signal in ew["signals"]:
+        state = signal["state"]
+        mark, cls = (("● 亮", "t-watch") if state is True
+                     else ("— 未知", "t-unknown") if state is None else ("○", "t-ok"))
+        rows.append(
+            '      <tr><td class="k">%s</td><td class="%s">%s</td><td>%s</td>'
+            '<td class="dt">%s</td><td class="note note-only">%s</td></tr>' % (
+                _esc(signal["code"]), cls, mark, _esc(_terms_text(signal["terms"])),
+                _esc(signal["since"] or "—"), _esc(signal["desc"])))
+
+    record = ew["record"]
+    episodes = []
+    for e in reversed(record["episodes"]):
+        result = _RESULT_TEXT.get(e["result"], e["result"])
+        if e["result"] == "hit":
+            result += "：%d 個交易日後（%s）" % (e["lead"], e["hit_date"])
+        elif e["result"] == "pending":
+            result += "：已過 %d／%d 個交易日" % (e["elapsed"], record["window"])
+        episodes.append('      <tr><td class="dt">%s</td><td class="dt">%s</td><td>%d</td>'
+                        '<td class="%s">%s</td></tr>' % (
+                            _esc(e["start"]), "進行中" if e["ongoing"] else _esc(e["end"]),
+                            e["peak"], "t-watch" if e["result"] == "hit" else "", _esc(result)))
+    summary = record["summary"]
+    head = ("預警 <b>%d</b>／%d · 自 %s 起（第 %d 個交易日）" % (
+        ew["count"], ew["total"], _esc(ew["since"]), ew["days"]) if ew["active"] else
+        "預警 <b>%s</b>／%d · 未啟動（要 %d 條）" % (
+            "—" if ew["count"] is None else ew["count"], ew["total"], ew["min_signals"]))
+    return (
+        '<section>\n'
+        '  <div class="shead"><h3>預警</h3>'
+        '<span class="anno">EARLY WARNING · 速度與背離，比門檻早</span>'
+        '<span class="anno">SECTION W</span></div>\n'
+        '  <p class="lede note-only">水位型的引信要等越過門檻才亮，本質上是確認。這一層看變化的'
+        '速度、信用和股市有沒有走散。門檻都在 rules.json 的 early_warning，是整數，沒有拿過去的'
+        '資料去調。回測用同一套公式重跑整段歷史：亮起時%s才算預警；之後 %d 個交易日內%s算成功。'
+        '信用利差的實際公布比資料日期晚 1–2 天，回測沒有扣掉這段時差。</p>\n'
+        '  <div class="ew-head %s">%s</div>\n'
+        '  <div class="wrap"><table>\n'
+        '    <thead><tr><th>訊號</th><th>狀態</th><th>現在（門檻）</th><th>自</th>'
+        '<th class="note note-only">意義</th></tr></thead>\n    <tbody>\n%s\n    </tbody>\n  </table></div>\n'
+        '  <div class="ew-record">回測紀錄（%s 起）：成功 %d · 誤報 %d · 觀察中 %d · 確認 %d</div>\n'
+        '  <div class="wrap"><table>\n'
+        '    <thead><tr><th>亮起</th><th>結束</th><th>最多幾條</th><th>結果</th></tr></thead>\n'
+        '    <tbody>\n%s\n    </tbody>\n  </table></div>\n'
+        '</section>' % (
+            _esc(record["calm_label"]), record["window"], _esc(record["outcome_label"]),
+            "t-watch" if ew["active"] else "t-ok", head,
+            "\n".join(rows), _esc(record["from"] or "—"), summary["hit"], summary["miss"],
+            summary["pending"], summary["concurrent"], "\n".join(episodes)))
+
+
 def _proximity_bar(proximity):
     """距該階還有多遠：左端＝平常，右端紅線＝觸發。與公開版同一份資料，
     但這裡是伺服器端畫的——工程視圖在關掉 JS 時也要完整。"""
@@ -546,6 +616,7 @@ def render_html(snapshot, changes, series=None):
     body = "\n\n".join([
         _header(snapshot),
         _verdict(snapshot),
+        _early_warning(snapshot),
         _changes(snapshot, changes),
         _crowding(snapshot),
         _gauges(snapshot),

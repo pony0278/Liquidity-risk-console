@@ -7,6 +7,7 @@
     "level": 1,
     "headline": "沒有流動性危機。壓力集中在利率／匯率，性質是重定價。",
     "paragraphs": [
+      "預警 3／5，自 2026-09-23 起（第 16 個交易日）：CCC 速度、HY 速度、債市波動。這幾條看的是變化的速度、信用和股市有沒有走散，不是水位——水位型的門檻還沒越過，代表惡化正在進行、還沒被確認。",
       "資金水管仍寬鬆——SOFR 在 IORB 之下 1 bps，隔夜擔保融資成本沒有緊張跡象。這是判斷「不是流動性事件」最乾淨的證據。",
       "長端在 5.525%（單日 -4bps），曲線走平（2s30s 77 bps，單日 -3bps）。看曲線形狀而非單一水位：短端跌而長端噴是期限溢價，兩者同漲才是升息預期。",
       "信用與波動率：HY OAS 316 bps（寬鬆）、VIX 16.87、MOVE 99.1。信用是所有崩盤的領先指標，波動率是事件驅動——兩者同時轉向才代表事件在擴散。",
@@ -178,7 +179,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "iorb",
@@ -213,7 +214,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "srf",
@@ -290,7 +291,7 @@
       "note": "非 FRED，抓 NY Fed desk operations API。報稅日、季底的關鍵日使用屬正常。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "nyfed_repo"
+      "fetch_provider": null
     },
     {
       "key": "tga",
@@ -325,7 +326,7 @@
       "note": "看週變動，不看水位。急抽會直接扣準備金。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "reserves",
@@ -360,7 +361,7 @@
       "note": "SOFR−IORB 的成因指標。能在 SOFR 翻正前幾週看到鋪陳。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "rrp",
@@ -421,7 +422,7 @@
       "note": "過去縮表先抽 RRP、抽完才輪到準備金。緩衝墊沒了＝縮表直接咬進準備金。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "walcl",
@@ -456,7 +457,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "net_liquidity",
@@ -568,7 +569,7 @@
       "note": "特性：從緊到擴張很快，一旦動就是大幅度。FRED 自 2026/4 起僅保留近 3 年觀測值，本腳本會自行累積歷史。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "ig_oas",
@@ -637,7 +638,7 @@
       "note": "AI 相關發行供給潮是今年最大的技術面變數。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "ccc_oas",
@@ -714,7 +715,7 @@
       "note": "指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "hy_ig",
@@ -790,7 +791,7 @@
       "track": {
         "lo": 82.5,
         "hi": 167.5,
-        "marker_pct": 19.487412396599264,
+        "marker_pct": 19.487412941176473,
         "segments": [
           {
             "status": "ok",
@@ -826,7 +827,7 @@
           }
         ],
         "next_edge": 100,
-        "next_distance": 0.935699462890625,
+        "next_distance": 0.9356989999999996,
         "prev_edge": null,
         "prev_distance": null
       },
@@ -845,14 +846,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 1,
-      "value": 99.06430053710938,
+      "value": 99.064301,
       "display": "99.1",
       "date": "2026-10-14",
       "points": 548,
       "status": "ok",
       "status_label": "正常",
       "basis": "水位",
-      "change_1": -2.02569580078125,
+      "change_1": -2.025694999999999,
       "change_display": "-2.0",
       "threshold_text": "🟢 <100 ／ 🟡 100–130 ／ 🟠 130–150 ／ 🔴 >150",
       "freq": "每日",
@@ -860,14 +861,14 @@
       "note": "通常領先 VIX 1–3 週。FRED 沒有此系列，走 Yahoo。Yahoo 的 ^MOVE 會正常回應但整段停更（實測停在 7/17 超過三週），過期時請改看下一格的 VXTLT——它是不同尺標的替代讀數，不是同一個數字。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "vxtlt",
       "track": {
         "lo": 11.85,
         "hi": 27.15,
-        "marker_pct": 18.23529636158663,
+        "marker_pct": 18.235294117647065,
         "segments": [
           {
             "status": "ok",
@@ -903,7 +904,7 @@
           }
         ],
         "next_edge": 15,
-        "next_distance": 0.3599996566772461,
+        "next_distance": 0.35999999999999943,
         "prev_edge": null,
         "prev_distance": null
       },
@@ -922,14 +923,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 1,
-      "value": 14.640000343322754,
+      "value": 14.64,
       "display": "14.6",
       "date": "2026-10-09",
       "points": 45,
       "status": "ok",
       "status_label": "正常",
       "basis": "水位",
-      "change_1": -0.8699996566772459,
+      "change_1": -0.8699999999999992,
       "change_display": "-0.9",
       "threshold_text": "🟢 <15 ／ 🟡 15–20 ／ 🟠 20–24 ／ 🔴 >24",
       "freq": "每日",
@@ -937,50 +938,50 @@
       "note": "MOVE 停更時的替代讀數。量的是 TLT（20 年期公債 ETF）的隱含波動，單位是百分比，跟 MOVE 的基點波動不同尺標，兩個數字不能直接比大小——看的是「同時間它在自己的區間裡站多高」。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "vix",
       "track": {
-        "lo": 15.870000839233398,
+        "lo": 15.870000999999998,
         "hi": 33.5,
-        "marker_pct": 5.672150014762209,
+        "marker_pct": 5.672150066486107,
         "segments": [
           {
             "status": "ok",
             "label": "正常",
             "start_pct": 0.0,
             "width_pct": 23.333333333333346,
-            "from": 15.870000839233398,
-            "to": 19.98366731007894
+            "from": 15.870000999999998,
+            "to": 19.98366743333333
           },
           {
             "status": "watch",
             "label": "警示",
             "start_pct": 23.333333333333332,
             "width_pct": 28.33333333333336,
-            "from": 19.98366731007894,
-            "to": 24.978833738962813
+            "from": 19.98366743333333,
+            "to": 24.978833816666665
           },
           {
             "status": "press",
             "label": "壓力",
             "start_pct": 51.66666666666667,
             "width_pct": 28.33333333333336,
-            "from": 24.978833738962813,
-            "to": 29.974000167846683
+            "from": 24.978833816666665,
+            "to": 29.9740002
           },
           {
             "status": "alarm",
             "label": "恐慌",
             "start_pct": 80.0,
             "width_pct": 20.000000000000004,
-            "from": 29.974000167846683,
+            "from": 29.9740002,
             "to": 33.5
           }
         ],
         "next_edge": 20,
-        "next_distance": 3.1299991607666016,
+        "next_distance": 3.1299990000000015,
         "prev_edge": null,
         "prev_distance": null
       },
@@ -999,14 +1000,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 2,
-      "value": 16.8700008392334,
+      "value": 16.870001,
       "display": "16.87",
       "date": "2026-10-14",
       "points": 556,
       "status": "ok",
       "status_label": "正常",
       "basis": "水位",
-      "change_1": 1.6000003814697266,
+      "change_1": 1.600000999999999,
       "change_display": "+1.60",
       "threshold_text": "🟢 <20 ／ 🟡 20–25 ／ 🟠 >25 持續 ／ 🔴 >30",
       "freq": "每日",
@@ -1014,14 +1015,14 @@
       "note": "16 以下是順風區；破 30 才進入去槓桿階。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "vvix",
       "track": {
         "lo": 89.5,
         "hi": 140.5,
-        "marker_pct": 9.705876369102329,
+        "marker_pct": 9.705876470588228,
         "segments": [
           {
             "status": "ok",
@@ -1057,7 +1058,7 @@
           }
         ],
         "next_edge": 100,
-        "next_distance": 5.5500030517578125,
+        "next_distance": 5.550003000000004,
         "prev_edge": null,
         "prev_distance": null
       },
@@ -1076,14 +1077,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 1,
-      "value": 94.44999694824219,
+      "value": 94.449997,
       "display": "94.4",
       "date": "2026-10-14",
       "points": 553,
       "status": "ok",
       "status_label": "穩定",
       "basis": "水位",
-      "change_1": 9.069999694824219,
+      "change_1": 9.069999999999993,
       "change_display": "+9.1",
       "threshold_text": "🟢 <100 ／ 🟡 100–110 ／ 🟠 110–130 ／ 🔴 >130",
       "freq": "每日",
@@ -1091,14 +1092,14 @@
       "note": "尾部風險定價（對恐慌的恐慌）。VIX 低但 VVIX 高＝市場在偷買保險。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "y30",
       "track": {
         "lo": 4.6425,
-        "hi": 5.570000095367432,
-        "marker_pct": 95.1482484773036,
+        "hi": 5.57,
+        "marker_pct": 95.14824797843666,
         "segments": [
           {
             "status": "ok",
@@ -1106,37 +1107,37 @@
             "start_pct": 0.0,
             "width_pct": 17.08333333333333,
             "from": 4.6425,
-            "to": 4.800947932958603
+            "to": 4.800947916666667
           },
           {
             "status": "watch",
             "label": "警示",
             "start_pct": 17.083333333333332,
             "width_pct": 21.666666666666675,
-            "from": 4.800947932958603,
-            "to": 5.001906286954879
+            "from": 4.800947916666667,
+            "to": 5.00190625
           },
           {
             "status": "press",
             "label": "明確壓力",
             "start_pct": 38.75,
             "width_pct": 26.66666666666669,
-            "from": 5.001906286954879,
-            "to": 5.249239645719528
+            "from": 5.00190625,
+            "to": 5.249239583333334
           },
           {
             "status": "alarm",
             "label": "失控區",
             "start_pct": 65.41666666666667,
             "width_pct": 34.58333333333336,
-            "from": 5.249239645719528,
-            "to": 5.570000095367432
+            "from": 5.249239583333334,
+            "to": 5.57
           }
         ],
         "next_edge": null,
         "next_distance": null,
         "prev_edge": 5.25,
-        "prev_distance": 0.27500009536743164
+        "prev_distance": 0.27500000000000036
       },
       "stale_days": 1,
       "stale_limit": 7,
@@ -1153,14 +1154,14 @@
       "hidden": false,
       "unit": "%",
       "decimals": 3,
-      "value": 5.525000095367432,
+      "value": 5.525,
       "display": "5.525%",
       "date": "2026-10-14",
       "points": 554,
       "status": "alarm",
       "status_label": "失控區",
       "basis": "水位",
-      "change_1": -0.03800010681152344,
+      "change_1": -0.03799999999999937,
       "change_display": "-4bps",
       "threshold_text": "🟢 <4.8 ／ 🟡 4.8–5.0 ／ 🟠 5.0–5.25 ／ 🔴 >5.25",
       "freq": "每日",
@@ -1168,14 +1169,14 @@
       "note": "單日 +10bps ＝ 即時 risk-off（見盤中引信）。水位重要，但黏著度更重要。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "y10",
       "track": {
         "lo": 4.325,
-        "hi": 5.240000057220459,
-        "marker_pct": 94.53551946740994,
+        "hi": 5.24,
+        "marker_pct": 94.53551912568308,
         "segments": [
           {
             "status": "ok",
@@ -1183,37 +1184,37 @@
             "start_pct": 0.0,
             "width_pct": 19.166666666666668,
             "from": 4.325,
-            "to": 4.500375010967255
+            "to": 4.500375
           },
           {
             "status": "watch",
             "label": "警示",
             "start_pct": 19.166666666666668,
             "width_pct": 32.9166666666667,
-            "from": 4.500375010967255,
-            "to": 4.801562529802323
+            "from": 4.500375,
+            "to": 4.8015625
           },
           {
             "status": "press",
             "label": "明確壓力",
             "start_pct": 52.083333333333336,
             "width_pct": 21.666666666666675,
-            "from": 4.801562529802323,
-            "to": 4.999812542200089
+            "from": 4.8015625,
+            "to": 4.9998125
           },
           {
             "status": "alarm",
             "label": "失控區",
             "start_pct": 73.75,
             "width_pct": 26.25000000000002,
-            "from": 4.999812542200089,
-            "to": 5.240000057220459
+            "from": 4.9998125,
+            "to": 5.24
           }
         ],
         "next_edge": null,
         "next_distance": null,
         "prev_edge": 5.0,
-        "prev_distance": 0.19000005722045898
+        "prev_distance": 0.1900000000000004
       },
       "stale_days": 1,
       "stale_limit": 7,
@@ -1230,14 +1231,14 @@
       "hidden": false,
       "unit": "%",
       "decimals": 3,
-      "value": 5.190000057220459,
+      "value": 5.19,
       "display": "5.190%",
       "date": "2026-10-14",
       "points": 554,
       "status": "alarm",
       "status_label": "失控區",
       "basis": "水位",
-      "change_1": -0.026999950408935547,
+      "change_1": -0.026999999999999247,
       "change_display": "-3bps",
       "threshold_text": "🟢 <4.5 ／ 🟡 4.5–4.8 ／ 🟠 4.8–5.0 ／ 🔴 >5.0",
       "freq": "每日",
@@ -1245,7 +1246,7 @@
       "note": "房貸基準利率。與 30Y 的關係決定壓力是「升息預期」還是「期限溢價」。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "y2",
@@ -1280,14 +1281,14 @@
       "note": "2Y 跌而 30Y 噴 ＝ 期限溢價；兩者同漲 ＝ 升息預期。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "slope_2s30s",
       "track": {
         "lo": 49.5,
         "hi": 100.5,
-        "marker_pct": 54.50984356450099,
+        "marker_pct": 54.50980392156857,
         "segments": [
           {
             "status": "ok",
@@ -1315,9 +1316,9 @@
           }
         ],
         "next_edge": 90,
-        "next_distance": 12.699979782104492,
+        "next_distance": 12.700000000000031,
         "prev_edge": 60,
-        "prev_distance": 17.300020217895508
+        "prev_distance": 17.29999999999997
       },
       "stale_days": 2,
       "stale_limit": 7,
@@ -1334,14 +1335,14 @@
       "hidden": false,
       "unit": "bps",
       "decimals": 0,
-      "value": 77.30002021789551,
+      "value": 77.29999999999997,
       "display": "77 bps",
       "date": "2026-10-13",
       "points": 548,
       "status": "watch",
       "status_label": "陡化中",
       "basis": "水位",
-      "change_1": -2.6999702453613423,
+      "change_1": -2.700000000000017,
       "change_display": "-3bps",
       "threshold_text": "短端跌＋長端噴＝熊市陡化",
       "freq": "每日",
@@ -1418,7 +1419,7 @@
       "note": "NY Fed ACM 只有 xls，這裡改用 FRED 的 Kim-Wright 模型（THREEFYTP10），口徑不同但方向一致。慢變數，不會像 VIX 隔天回落。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "usdjpy",
@@ -1438,14 +1439,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 2,
-      "value": 157.8780059814453,
+      "value": 157.878006,
       "display": "157.88",
       "date": "2026-10-15",
       "points": 588,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": -0.5009920185546832,
+      "change_1": -0.5009919999999966,
       "change_display": "-0.50",
       "threshold_text": "水位不設閾值；警報看速度（單日 −2% ＝ carry unwind）",
       "freq": "每日",
@@ -1453,7 +1454,7 @@
       "note": "水位高本身不是警報，但代表引信更長更滿。危險在速度的兩個極端。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "dxy",
@@ -1473,14 +1474,14 @@
       "hidden": false,
       "unit": "",
       "decimals": 2,
-      "value": 102.26300048828125,
+      "value": 102.263,
       "display": "102.26",
       "date": "2026-10-15",
       "points": 563,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": 0.1029964882812493,
+      "change_1": 0.10299600000000453,
       "change_display": "+0.10",
       "threshold_text": "與 30Y 同向＝正常；反向＝質變",
       "freq": "每日",
@@ -1488,14 +1489,14 @@
       "note": "若變成殖利率升＋美元跌，即升級為主權信譽問題（見升級觸發器）。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "wti",
       "track": {
         "lo": 79.75,
         "hi": 105.25,
-        "marker_pct": 58.941171683517155,
+        "marker_pct": 58.941172549019626,
         "segments": [
           {
             "status": "ok",
@@ -1523,9 +1524,9 @@
           }
         ],
         "next_edge": 100,
-        "next_distance": 5.220001220703125,
+        "next_distance": 5.220000999999996,
         "prev_edge": 85,
-        "prev_distance": 9.779998779296875
+        "prev_distance": 9.779999000000004
       },
       "stale_days": 0,
       "stale_limit": 7,
@@ -1542,14 +1543,14 @@
       "hidden": false,
       "unit": "$",
       "decimals": 2,
-      "value": 94.77999877929688,
+      "value": 94.779999,
       "display": "$94.78",
       "date": "2026-10-15",
       "points": 563,
       "status": "watch",
       "status_label": "反覆",
       "basis": "水位",
-      "change_1": -0.1300052207031257,
+      "change_1": -0.13000499999999704,
       "change_display": "-0.13",
       "threshold_text": "單日 ±5% 進盤中引信",
       "freq": "每日",
@@ -1557,7 +1558,7 @@
       "note": "幾乎是所有地緣風險的總開關。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "ndx",
@@ -1577,14 +1578,14 @@
       "hidden": true,
       "unit": "",
       "decimals": 0,
-      "value": 29950.81640625,
+      "value": 29950.816406,
       "display": "29951",
       "date": "2026-10-14",
       "points": 553,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": -618.6640625,
+      "change_1": -618.6640629999965,
       "change_display": "-619",
       "threshold_text": "",
       "freq": "每日",
@@ -1592,7 +1593,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "sox",
@@ -1612,14 +1613,14 @@
       "hidden": true,
       "unit": "",
       "decimals": 0,
-      "value": 11684.3828125,
+      "value": 11684.382812,
       "display": "11684",
       "date": "2026-10-14",
       "points": 553,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": -524.4072265625,
+      "change_1": -524.4072269999997,
       "change_display": "-524",
       "threshold_text": "",
       "freq": "每日",
@@ -1627,7 +1628,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "n225",
@@ -1647,14 +1648,14 @@
       "hidden": true,
       "unit": "",
       "decimals": 0,
-      "value": 66851.6328125,
+      "value": 66851.632812,
       "display": "66852",
       "date": "2026-10-15",
       "points": 537,
       "status": "info",
       "status_label": "僅記錄",
       "basis": "僅記錄",
-      "change_1": -1174.6093755000038,
+      "change_1": -1174.6093760000076,
       "change_display": "-1175",
       "threshold_text": "",
       "freq": "每日",
@@ -1662,7 +1663,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "yahoo"
+      "fetch_provider": null
     },
     {
       "key": "claims",
@@ -1739,7 +1740,7 @@
       "note": "反方向意外（數據突然轉壞）常是最未被定價的風險。",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     },
     {
       "key": "payrolls",
@@ -1843,7 +1844,7 @@
       "note": "",
       "fetch_ok": true,
       "fetch_detail": "",
-      "fetch_provider": "fred"
+      "fetch_provider": null
     }
   ],
   "tripwires": [
@@ -1945,9 +1946,9 @@
             "var": "usdjpy_pct1",
             "label": "USD/JPY 單日",
             "op": "<=",
-            "current": -0.3163247809881198,
+            "current": -0.31632476927274666,
             "trigger": -2.0,
-            "anchor": -0.2968243456692998,
+            "anchor": -0.29682434632173904,
             "position": 0.011,
             "current_text": "-0.3%",
             "trigger_text": "-2.0%"
@@ -1956,9 +1957,9 @@
             "var": "vix",
             "label": "VIX",
             "op": ">",
-            "current": 16.8700008392334,
+            "current": 16.870001,
             "trigger": 30.0,
-            "anchor": 17.09500026702881,
+            "anchor": 17.095,
             "position": 0.0,
             "current_text": "16.87",
             "trigger_text": "30.00"
@@ -2017,9 +2018,9 @@
             "var": "y30_d5",
             "label": "30Y 殖利率 5 日",
             "op": ">=",
-            "current": -0.1359996795654297,
+            "current": -0.13599999999999923,
             "trigger": 0.15,
-            "anchor": 0.05750012397766113,
+            "anchor": 0.05750000000000011,
             "position": 0.0,
             "current_text": "-14 bps",
             "trigger_text": "+15 bps"
@@ -2028,9 +2029,9 @@
             "var": "dxy_pct5",
             "label": "DXY 美元指數 5 日",
             "op": "<=",
-            "current": 0.12042402522793871,
+            "current": 0.1204239291210607,
             "trigger": -1.0,
-            "anchor": -0.5577237698377924,
+            "anchor": -0.5577240344056544,
             "position": 0.0,
             "current_text": "+0.1%",
             "trigger_text": "-1.0%"
@@ -2417,6 +2418,214 @@
     }
   ],
   "data_notes": [],
+  "early_warning": {
+    "as_of": "2026-10-14",
+    "count": 3,
+    "total": 5,
+    "min_signals": 2,
+    "active": true,
+    "since": "2026-09-23",
+    "days": 16,
+    "signals": [
+      {
+        "id": "ccc_speed",
+        "code": "CCC 速度",
+        "desc": "最弱企業的借錢成本在加速惡化",
+        "expr": "ccc_oas_d20 >= 75",
+        "state": true,
+        "since": "2026-09-24",
+        "terms": {
+          "mode": "any",
+          "terms": [
+            {
+              "var": "ccc_oas_d20",
+              "label": "CCC OAS 20 期",
+              "current_text": "+182 bps",
+              "rule_text": "≥ +75 bps",
+              "met": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "hy_speed",
+        "code": "HY 速度",
+        "desc": "整體垃圾債開始跟上",
+        "expr": "hy_oas_d20 >= 30",
+        "state": true,
+        "since": "2026-09-25",
+        "terms": {
+          "mode": "any",
+          "terms": [
+            {
+              "var": "hy_oas_d20",
+              "label": "HY OAS 20 期",
+              "current_text": "+40 bps",
+              "rule_text": "≥ +30 bps",
+              "met": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "divergence",
+        "code": "股債背離",
+        "desc": "信用在惡化，股市還沒反應",
+        "expr": "ccc_oas_d20 >= 50 and ndx_dd60 > -3",
+        "state": false,
+        "since": null,
+        "terms": {
+          "mode": "all",
+          "terms": [
+            {
+              "var": "ccc_oas_d20",
+              "label": "CCC OAS 20 期",
+              "current_text": "+182 bps",
+              "rule_text": "≥ +50 bps",
+              "met": true
+            },
+            {
+              "var": "ndx_dd60",
+              "label": "Nasdaq 100 自 60 日高點",
+              "current_text": "-4.1%",
+              "rule_text": "> -3.0%",
+              "met": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "long_speed",
+        "code": "長端速度",
+        "desc": "折現率在加速上升",
+        "expr": "y30_d20_bps >= 25",
+        "state": false,
+        "since": null,
+        "terms": {
+          "mode": "any",
+          "terms": [
+            {
+              "var": "y30_d20_bps",
+              "label": "30Y 殖利率 20 期",
+              "current_text": "+18 bps",
+              "rule_text": "≥ +25 bps",
+              "met": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "bondvol_speed",
+        "code": "債市波動",
+        "desc": "債市的恐慌在升溫",
+        "expr": "move_d20 >= 15",
+        "state": true,
+        "since": "2026-09-23",
+        "terms": {
+          "mode": "any",
+          "terms": [
+            {
+              "var": "move_d20",
+              "label": "MOVE 20 期",
+              "current_text": "+15.4",
+              "rule_text": "≥ +15.0",
+              "met": true
+            }
+          ]
+        }
+      }
+    ],
+    "record": {
+      "from": "2024-08-29",
+      "calm_label": "NDX 離 60 日高點不到 3%",
+      "outcome_label": "NDX 自 60 日高點跌破 −5%",
+      "window": 30,
+      "summary": {
+        "hit": 2,
+        "miss": 1,
+        "pending": 1,
+        "concurrent": 6
+      },
+      "episodes": [
+        {
+          "start": "2024-10-07",
+          "end": "2024-11-01",
+          "ongoing": false,
+          "peak": 2,
+          "result": "miss"
+        },
+        {
+          "start": "2025-01-07",
+          "end": "2025-01-14",
+          "ongoing": false,
+          "peak": 2,
+          "result": "concurrent"
+        },
+        {
+          "start": "2025-03-06",
+          "end": "2025-04-30",
+          "ongoing": false,
+          "peak": 4,
+          "result": "concurrent"
+        },
+        {
+          "start": "2025-10-10",
+          "end": "2025-10-22",
+          "ongoing": false,
+          "peak": 3,
+          "result": "concurrent"
+        },
+        {
+          "start": "2025-11-03",
+          "end": "2025-11-04",
+          "ongoing": false,
+          "peak": 3,
+          "result": "hit",
+          "lead": 10,
+          "hit_date": "2025-11-17"
+        },
+        {
+          "start": "2025-11-21",
+          "end": "2025-11-24",
+          "ongoing": false,
+          "peak": 2,
+          "result": "concurrent"
+        },
+        {
+          "start": "2026-03-03",
+          "end": "2026-03-30",
+          "ongoing": false,
+          "peak": 3,
+          "result": "concurrent"
+        },
+        {
+          "start": "2026-05-18",
+          "end": "2026-05-18",
+          "ongoing": false,
+          "peak": 2,
+          "result": "hit",
+          "lead": 14,
+          "hit_date": "2026-06-05"
+        },
+        {
+          "start": "2026-07-31",
+          "end": "2026-07-31",
+          "ongoing": false,
+          "peak": 2,
+          "result": "concurrent"
+        },
+        {
+          "start": "2026-09-23",
+          "end": "2026-10-14",
+          "ongoing": true,
+          "peak": 5,
+          "result": "pending",
+          "elapsed": 15
+        }
+      ]
+    },
+    "new_onset": false
+  },
   "changes": [
     [
       "warn",
