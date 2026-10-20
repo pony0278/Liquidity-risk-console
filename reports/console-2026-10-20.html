@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0E13">
+<title>系統壓力盤 — 流動性與尾部風險監測 2026-10-20</title>
+<style>
+/* 深色主題，與公開版同一組值（lrconsole/public_page.py 的 _CSS）。所有顏色
+   都在這一塊，下面的規則只用變數——包括半透明的底色。四個狀態色是用 dataviz
+   驗證腳本挑的：相鄰兩級在紅綠色盲下最小 ΔE 11.4，紅色對比 5.42:1。 */
+:root{
+  color-scheme:dark;
+  --paper:#0B0E13;
+  --paper-2:#1B212B;
+  --ink:#E6EAF0;
+  --ink-soft:#A3AEBF;
+  --ink-faint:#7C889A;
+  --rule:#252C37;
+  --rule-hard:#3A4452;
+
+  --ok:#4C9F72;
+  --watch:#F7CF55;
+  --press:#EE8536;
+  --alarm:#E95078;
+  --dead:#7A8494;
+
+  --grid:rgba(255,255,255,.028);
+  --hover:rgba(255,255,255,.04);
+  --node-bg:rgba(255,255,255,.03);
+  --node-hover:rgba(255,255,255,.08);
+  --tint-watch:rgba(247,207,85,.10);
+  --tint-press:rgba(238,133,54,.13);
+  --tint-alarm:rgba(233,80,120,.12);
+
+  --mono: ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans: "Noto Sans TC","PingFang TC","Microsoft JhengHei","Hiragino Sans TC",system-ui,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;background:var(--paper)}
+body{
+  margin:0;
+  background:var(--paper);
+  background-image:
+    repeating-linear-gradient(0deg,transparent 0 39px,var(--grid) 39px 40px),
+    repeating-linear-gradient(90deg,transparent 0 39px,var(--grid) 39px 40px);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.6;
+}
+.sheet{max-width:1180px;margin:0 auto;padding:0 20px 96px}
+
+/* ---------- drafting annotation type ---------- */
+.anno{
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+  font-weight:600;
+}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---------- title block (like a drawing titleblock) ---------- */
+header{
+  border-bottom:1.5px solid var(--ink);
+  padding:34px 0 0;
+  margin-bottom:0;
+}
+.tb{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:24px;
+  align-items:end;
+  padding-bottom:18px;
+}
+h1{
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:clamp(22px,3.6vw,34px);
+  letter-spacing:-.02em;
+  margin:6px 0 0;
+  line-height:1.1;
+}
+h1 span{color:var(--ink-faint);font-weight:400}
+.tb-meta{text-align:right;line-height:1.9}
+.tb-meta div{white-space:nowrap}
+
+/* ---------- tier status strip ---------- */
+.strip{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  border-bottom:1.5px solid var(--ink);
+}
+.strip>div{
+  padding:14px 12px 16px;
+  border-left:1px solid var(--rule);
+}
+.strip>div:first-child{border-left:0}
+.strip b{
+  display:block;
+  font-family:var(--mono);
+  font-size:19px;
+  font-weight:700;
+  margin-top:5px;
+  letter-spacing:-.01em;
+}
+.strip .rd{font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);margin-top:2px}
+
+/* ---------- verdict ---------- */
+.verdict{
+  padding:26px 0 30px;
+  border-bottom:1px solid var(--rule);
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);
+  gap:34px;
+}
+.verdict h2{
+  font-family:var(--mono);
+  font-size:clamp(17px,2.2vw,22px);
+  font-weight:700;
+  margin:8px 0 10px;
+  line-height:1.35;
+  letter-spacing:-.01em;
+}
+.verdict p{margin:0 0 10px;max-width:62ch}
+.verdict p:last-child{margin-bottom:0}
+.tag{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  border:1px solid currentColor;
+  padding:3px 8px 2px;
+  font-weight:600;
+}
+.side{border-left:1px solid var(--rule);padding-left:22px}
+.side dl{margin:10px 0 0;font-size:13.5px}
+.side dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:13px}
+.side dd{margin:2px 0 0}
+
+/* ---------- section frame ---------- */
+section{padding-top:52px}
+.shead{display:flex;align-items:baseline;gap:14px;border-bottom:1.5px solid var(--ink);padding-bottom:8px;margin-bottom:4px;flex-wrap:wrap}
+.shead h3{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;margin:0}
+.shead .anno{margin-left:auto}
+.lede{color:var(--ink-soft);font-size:13.5px;max-width:76ch;margin:14px 0 24px}
+
+/* ---------- status marks ---------- */
+.m{display:inline-block;width:9px;height:9px;vertical-align:1px;margin-right:7px;flex:none}
+.m-ok{background:var(--ok)}
+.m-watch{background:var(--watch)}
+.m-press{background:var(--press)}
+.m-alarm{background:var(--alarm)}
+.m-dead{background:transparent;border:1px solid var(--dead)}
+.t-ok{color:var(--ok)} .t-watch{color:var(--watch)} .t-press{color:var(--press)} .t-alarm{color:var(--alarm)}
+
+/* ---------- crowding ---------- */
+.crowd{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:0;border-top:1px solid var(--rule)}
+.cw{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:18px 20px 20px}
+.cw:nth-child(3n){border-right:0}
+.cw h4{margin:6px 0 0;font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+.cw .lv{display:flex;align-items:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.cw dl{margin:13px 0 0;font-size:13px;line-height:1.55}
+.cw dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-top:10px}
+.cw dd{margin:1px 0 0;color:var(--ink)}
+
+/* ---------- gauge table ---------- */
+.wrap{overflow-x:auto;border-top:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
+thead th{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600;text-align:left;
+  padding:9px 12px;border-bottom:1px solid var(--rule-hard);white-space:nowrap;
+}
+tbody td{padding:11px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr.tier td{
+  background:var(--paper-2);
+  font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;
+  padding:7px 12px;border-bottom:1px solid var(--rule-hard);
+}
+tbody tr.ext td:first-child::after{content:" ＋";color:var(--ink-faint);font-size:11px}
+td.k{font-weight:600;white-space:nowrap}
+td.v{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+td.th{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.5}
+td.st{white-space:nowrap;font-family:var(--mono);font-size:11px;letter-spacing:.06em;font-weight:600}
+td.src{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+td.note{font-size:12.5px;color:var(--ink-soft);min-width:190px}
+tbody tr:hover td{background:var(--hover)}
+tbody tr.tier:hover td{background:var(--paper-2)}
+tr.hl td{background:var(--tint-press)!important;box-shadow:inset 2px 0 0 var(--press)}
+
+/* ---------- SIGNATURE: transmission chains ---------- */
+.chains{border-top:1px solid var(--rule)}
+.chain{padding:22px 0 26px;border-bottom:1px solid var(--rule)}
+.chain-hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.chain-hd h4{margin:0;font-size:16px;font-weight:700}
+.chain-hd .state{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;border:1px solid currentColor;padding:2px 7px 1px}
+.chain-hd .cnt{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-left:auto;font-variant-numeric:tabular-nums}
+
+.run{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:6px}
+.node{
+  flex:1 1 0;min-width:150px;
+  border:1px solid var(--rule-hard);
+  background:var(--node-bg);
+  padding:10px 12px 12px;
+  position:relative;
+  cursor:default;
+  transition:background .18s ease, border-color .18s ease;
+}
+.node[data-jump]{cursor:pointer}
+.node[data-jump]:hover,.node[data-jump]:focus-visible{background:var(--node-hover);border-color:var(--ink);outline:none}
+.node+.node{margin-left:14px}
+.node+.node::before{
+  content:"";position:absolute;left:-15px;top:50%;width:15px;height:1px;background:var(--rule-hard);
+}
+.node+.node::after{
+  content:"";position:absolute;left:-6px;top:50%;transform:translateY(-50%) rotate(45deg);
+  width:5px;height:5px;border-top:1px solid var(--rule-hard);border-right:1px solid var(--rule-hard);
+}
+.node .step{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--ink-faint);font-weight:600;display:block}
+.node .lbl{display:block;font-size:13.5px;line-height:1.4;margin-top:5px;font-weight:600}
+.node .cond{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:6px;line-height:1.45}
+
+.node.live{background:var(--tint-press);border-color:var(--press)}
+.node.live .step{color:var(--press)}
+.node.live::marker{content:none}
+.node.armed{background:var(--tint-watch);border-color:var(--watch)}
+.node.armed .step{color:var(--watch)}
+.node.cold{border-style:dashed;border-color:var(--rule);background:transparent}
+.node.cold .lbl{color:var(--ink-soft);font-weight:600}
+.node .flag{
+  position:absolute;top:-1px;right:-1px;
+  font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;font-weight:700;
+  padding:2px 5px 1px;color:var(--paper);
+}
+.node.live .flag{background:var(--press)}
+.node.armed .flag{background:var(--watch)}
+.chain-note{font-size:12.5px;color:var(--ink-soft);margin:14px 0 0;padding-left:12px;border-left:2px solid var(--rule-hard)}
+
+@media (prefers-reduced-motion:no-preference){
+  .node.live .flag{animation:blip 2.6s ease-in-out infinite}
+  @keyframes blip{0%,100%{opacity:1}50%{opacity:.45}}
+}
+
+/* ---------- ladder ---------- */
+.ladder{border-top:1px solid var(--rule);counter-reset:none}
+.rung{
+  display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1.05fr) auto;
+  gap:18px;align-items:baseline;
+  padding:15px 0;border-bottom:1px solid var(--rule);
+}
+.rung .lv{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink-faint);line-height:1}
+.rung h4{margin:0;font-size:15.5px;font-weight:700}
+.rung .sig{font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.5}
+.rung .rd{font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:600;white-space:nowrap;text-align:right}
+.rung.here{background:var(--tint-press);box-shadow:inset 3px 0 0 var(--press);padding-left:12px}
+.rung.here .lv{color:var(--press)}
+/* 離觸發還有多遠：左端＝平常，右端紅線＝觸發 */
+.nbar{position:relative;display:block;width:120px;height:5px;background:var(--paper-2);margin:7px 0 0 auto}
+.nbar::after{content:"";position:absolute;right:0;top:-3px;width:2px;height:11px;background:var(--alarm)}
+.nbar b{position:absolute;top:50%;transform:translate(-50%,-50%);width:9px;height:9px;
+  border-radius:50%;background:var(--ink);border:2px solid var(--paper)}
+.nbar b.hit{background:var(--alarm)}
+.nbar.dead{background:repeating-linear-gradient(90deg,var(--paper-2) 0 4px,transparent 4px 8px)}
+.nbar.dead::after{display:none}
+.breadth-line{font-family:var(--mono);font-size:12px;color:var(--ink-soft);padding:10px 0 12px;
+  border-top:1px solid var(--rule)}
+.breadth-line b{font-size:15px;color:var(--ink)}
+
+/* ---------- tripwires ---------- */
+.wires{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:0;border-top:1px solid var(--rule)}
+.wire{border-bottom:1px solid var(--rule);border-right:1px solid var(--rule);padding:16px 18px 18px}
+.wire:last-child{border-right:0}
+.wire code{
+  display:block;font-family:var(--mono);font-size:13px;font-weight:700;
+  color:var(--alarm);margin:6px 0 8px;letter-spacing:-.01em;line-height:1.4;
+}
+.wire p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+
+/* ---------- footer ---------- */
+footer{margin-top:56px;border-top:1.5px solid var(--ink);padding-top:20px;font-size:12.5px;color:var(--ink-soft)}
+footer .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:26px}
+footer h5{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:var(--ink)}
+footer ul{margin:0;padding-left:16px}
+footer li{margin-bottom:5px}
+footer code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.disc{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);font-size:11.5px}
+
+@media (max-width:860px){
+  .verdict{grid-template-columns:1fr;gap:22px}
+  .side{border-left:0;border-top:1px solid var(--rule);padding-left:0;padding-top:18px}
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .strip>div:nth-child(odd){border-left:0}
+  .strip>div{border-top:1px solid var(--rule)}
+  .cw:nth-child(3n){border-right:1px solid var(--rule)}
+  .rung{grid-template-columns:34px 1fr;gap:10px 14px}
+  .rung .sig,.rung .rd{grid-column:2}
+  .rung .rd{text-align:left}
+  .rung .rd .nbar{margin-left:0}
+  .tb{grid-template-columns:1fr}
+  .tb-meta{text-align:left}
+  .run{display:block}
+  .node+.node{margin-left:0;margin-top:20px}
+  .node+.node::before{left:22px;top:-20px;width:1px;height:20px}
+  .node+.node::after{left:19px;top:-8px;transform:rotate(135deg)}
+}
+
+/* ---------- 自動掃描附加樣式 ---------- */
+.t-unknown{color:var(--dead)}
+.t-info{color:var(--ink-faint)}
+.m-info{background:transparent;border:1px solid var(--rule-hard)}
+.m-unknown{background:transparent;border:1px solid var(--dead)}
+.chg{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:600;margin-left:6px}
+.node.unknown{border-style:dashed;border-color:var(--dead);background:transparent}
+.node.unknown .lbl{color:var(--ink-faint)}
+.node.unknown .flag{background:var(--dead)}
+.wire.fired{background:var(--tint-alarm);box-shadow:inset 3px 0 0 var(--alarm)}
+.wire.unknown code{color:var(--dead)}
+.wire .st{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;display:block;margin-bottom:2px}
+.changes{border-top:1px solid var(--rule)}
+.chg-row{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.chg-row .sev{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;white-space:nowrap}
+.sev-alert{color:var(--alarm)} .sev-warn{color:var(--watch)} .sev-info{color:var(--ink-faint)}
+.cw .rdout{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:10px;font-variant-numeric:tabular-nums}
+.stale{color:var(--press);font-family:var(--mono);font-size:10px;letter-spacing:.1em}
+td.dt{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+
+/* ---------- 歷史先例（傳導鏈） ---------- */
+.precedents{margin-top:20px;border-top:1px solid var(--rule);padding-top:14px}
+.precedents>.anno{margin-bottom:12px}
+.pcase{border-left:2px solid var(--rule-hard);padding:0 0 0 16px;margin-bottom:22px}
+.pcase:last-child{margin-bottom:0}
+.phd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.phd h5{margin:0;font-size:14px;font-weight:700;font-family:var(--sans)}
+.pv{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:700;border:1px solid currentColor;padding:2px 6px 1px}
+.pmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:2px 16px;margin:11px 0 13px;font-size:12.5px}
+.pmeta dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-faint);grid-row:1}
+.pmeta dd{margin:0;font-weight:600;grid-row:2}
+.psteps{border-top:1px solid var(--rule)}
+.pstep{display:grid;grid-template-columns:74px 42px minmax(0,1fr) auto;gap:10px;
+  align-items:baseline;padding:7px 0;border-bottom:1px solid var(--rule);font-size:12.5px}
+.pstep .pw{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+.pstep .pk{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;font-weight:700;
+  color:var(--ink-faint);white-space:nowrap}
+.pstep .pd{font-family:var(--mono);font-size:10px;color:var(--ink-faint);white-space:nowrap}
+/* 日圓那一格是整段的重點——它在第幾幕決定它是領先還是落後訊號 */
+.pstep.k-yen{background:var(--tint-press);box-shadow:inset 2px 0 0 var(--press);
+  padding-left:8px;margin-left:-8px}
+.pstep.k-yen .pk,.pstep.k-yen .pw{color:var(--press)}
+.pstep.k-yen .pl{font-weight:700}
+.pstep.k-low .pl{color:var(--alarm)}
+.pstep.k-credit .pl{color:var(--press)}
+.pstep.k-recover .pl{color:var(--ok)}
+.plesson{font-size:12.5px;color:var(--ink-soft);margin:12px 0 0;line-height:1.55;
+  padding-left:10px;border-left:2px solid var(--rule)}
+@media(max-width:700px){
+  .pstep{grid-template-columns:1fr auto;gap:2px 10px}
+  .pstep .pk{grid-column:2;grid-row:1;text-align:right}
+  .pstep .pl{grid-column:1/-1}
+  .pstep .pd{grid-column:1/-1;grid-row:3}
+}
+
+/* ---------- 走勢欄（伺服器端 SVG，不依賴 JS） ---------- */
+td.sp{width:118px;padding-top:9px}
+svg.sk{display:block;width:104px;height:22px;overflow:visible}
+svg.sk .sl{fill:none;stroke:var(--ink-faint);stroke-width:1.2;
+  stroke-linejoin:round;stroke-linecap:round;opacity:.75}
+svg.sk .sr{fill:none;stroke:currentColor;stroke-width:1.6;
+  stroke-linejoin:round;stroke-linecap:round}
+svg.sk .sh{fill:currentColor;stroke:var(--paper);stroke-width:1.2}
+svg.sk .zl{stroke:var(--rule-hard);stroke-width:.8;stroke-dasharray:2 2}
+td.sp .rg{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);
+  margin-top:3px;letter-spacing:.02em;white-space:nowrap}
+.nospark{font-family:var(--mono);font-size:11px;color:var(--dead)}
+
+/* ---------- 閾值軌道（表格內） ---------- */
+.bandbar{display:flex;position:relative;height:6px;width:150px;margin-bottom:5px;
+  background:var(--paper-2)}
+.bandbar i{height:100%;opacity:.55;display:block;flex:none}
+.bandbar i+i{margin-left:1px}
+.bandbar b{position:absolute;top:-2px;width:2px;height:10px;background:var(--ink)}
+.bg-ok{background:var(--ok)} .bg-watch{background:var(--watch)}
+.bg-press{background:var(--press)} .bg-alarm{background:var(--alarm)}
+.bg-unknown{background:var(--dead)}
+
+/* ---------- 說明開關：預設只看圖表，文字讓想看的人自己開 ---------- */
+/* display:revert 還原成 UA 預設（td→table-cell、p→block、dt→block），
+   不必為每種元素各寫一條 */
+.note-only{display:none!important}
+body.show-notes .note-only{display:revert!important}
+.nbtn{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:700;color:var(--ink-soft);background:transparent;
+  border:1px solid var(--rule-hard);padding:4px 10px 3px;cursor:pointer;margin-top:4px;
+}
+.nbtn:hover{color:var(--ink);border-color:var(--ink)}
+/* 回到總覽：跟「顯示說明」同一個樣子，放在左上——返回的連結大家會先往那裡找，
+   手機上單欄排版時它也是第一個出現的 */
+.toback{
+  display:inline-block;margin-bottom:10px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;font-weight:700;
+  color:var(--ink-soft);text-decoration:none;
+  border:1px solid var(--rule-hard);padding:4px 10px 3px;
+}
+.toback:hover,.toback:focus-visible{color:var(--ink);border-color:var(--ink);outline:none}
+td.bd{width:170px}
+td.bd .thx{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);
+  margin-top:6px;line-height:1.5}
+body.show-notes td.bd .thx{display:block!important}
+
+/* ---------- 預警層 ---------- */
+.ew-head{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.04em;
+  padding:12px 0 10px;border-top:1px solid var(--rule)}
+.ew-head b{font-size:20px}
+.ew-record{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);padding:16px 0 8px}
+
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header>
+  <div class="tb">
+    <div>
+      <a class="toback" href="index.html">← 回到總覽</a>
+      <div class="anno">系統壓力盤 / SYSTEMIC PRESSURE CONSOLE</div>
+      <h1>流動性與尾部風險監測 <span>AUTO</span></h1>
+    </div>
+    <div class="tb-meta anno">
+      <div>資料截至 &nbsp;2026-10-20</div>
+      <div>掃描時間 &nbsp;2026-10-20 00:53</div>
+      <div>層級 &nbsp;TIER 1–5 ＋ 擁擠層</div>
+      <div>判定 &nbsp;<span class="t-alarm">第 1 階</span></div>
+      <div><button id="toggle-notes" class="nbtn" type="button">顯示說明</button></div>
+    </div>
+  </div>
+  <div class="strip">
+<div>
+  <div class="anno">TIER 1 &nbsp;資金水管</div>
+  <b class="t-watch"><span class="m m-watch"></span>緩衝已失</b>
+  <div class="rd">ON RRP $0B</div>
+</div>
+<div>
+  <div class="anno">TIER 2 &nbsp;信用</div>
+  <b class="t-watch"><span class="m m-watch"></span>底層分化</b>
+  <div class="rd">CCC OAS 1297 bps</div>
+</div>
+<div>
+  <div class="anno">TIER 3 &nbsp;波動率</div>
+  <b class="t-watch"><span class="m m-watch"></span>警示</b>
+  <div class="rd">MOVE 101.3</div>
+</div>
+<div>
+  <div class="anno">TIER 4 &nbsp;利率／匯率</div>
+  <b class="t-alarm"><span class="m m-alarm"></span>失控區</b>
+  <div class="rd">30Y 殖利率 5.472%</div>
+</div>
+<div>
+  <div class="anno">TIER 5 &nbsp;勞動</div>
+  <b class="t-watch"><span class="m m-watch"></span>趨近停滯</b>
+  <div class="rd">非農就業（月增） 29K</div>
+</div>
+  </div>
+</header>
+
+<div class="verdict">
+  <div>
+    <span class="tag t-alarm">第 1 階 · 折現率／估值重定價</span>
+    <h2>沒有流動性危機。壓力集中在利率／匯率，性質是重定價。</h2>
+    <p>預警 3／5，自 2026-09-23 起（第 19 個交易日）：CCC 速度、HY 速度、債市波動。這幾條看的是變化的速度、信用和股市有沒有走散，不是水位——水位型的門檻還沒越過，代表惡化正在進行、還沒被確認。</p>
+    <p>資金水管仍寬鬆——SOFR 在 IORB 之下 2 bps，隔夜擔保融資成本沒有緊張跡象。這是判斷「不是流動性事件」最乾淨的證據。</p>
+    <p>長端在 5.472%（單日 +4bps），曲線續陡（2s30s 70 bps，單日 +4bps）。看曲線形狀而非單一水位：短端跌而長端噴是期限溢價，兩者同漲才是升息預期。</p>
+    <p>信用與波動率：HY OAS 331 bps（寬鬆）、VIX 18.44、MOVE 101.3。信用是所有崩盤的領先指標，波動率是事件驅動——兩者同時轉向才代表事件在擴散。</p>
+    <p>本次沒有任何升級觸發器或盤中引信成立。</p>
+  </div>
+  <div class="side">
+    <div class="anno">本次掃描</div>
+    <dl>
+      <dt>觸發中的引信</dt><dd>無</dd>
+      <dt>無法判定</dt><dd>無</dd>
+      <dt class="note-only">判讀原則</dt><dd class="note-only">資金流動性 ≠ 市場流動性。Tier 1 是水管、慢變數；Tier 3／4 可在數小時內蒸發。水管型指標是落後指標。</dd>
+      <dt class="note-only">看速度，不看水位</dt><dd class="note-only">USD/JPY 的水位不是警報，單日反轉 −2% 才是。30Y 同理：關鍵是單日 +10bps 與黏著度。</dd>
+    </dl>
+  </div>
+</div>
+
+<section>
+  <div class="shead"><h3>預警</h3><span class="anno">EARLY WARNING · 速度與背離，比門檻早</span><span class="anno">SECTION W</span></div>
+  <p class="lede note-only">水位型的引信要等越過門檻才亮，本質上是確認。這一層看變化的速度、信用和股市有沒有走散。門檻都在 rules.json 的 early_warning，是整數，沒有拿過去的資料去調。回測用同一套公式重跑整段歷史：亮起時NDX 離 60 日高點不到 3%才算預警；之後 30 個交易日內NDX 自 60 日高點跌破 −5%算成功。信用利差的實際公布比資料日期晚 1–2 天，回測沒有扣掉這段時差。</p>
+  <div class="ew-head t-watch">預警 <b>3</b>／5 · 自 2026-09-23 起（第 19 個交易日）</div>
+  <div class="wrap"><table>
+    <thead><tr><th>訊號</th><th>狀態</th><th>現在（門檻）</th><th>自</th><th class="note note-only">意義</th></tr></thead>
+    <tbody>
+      <tr><td class="k">CCC 速度</td><td class="t-watch">● 亮</td><td>CCC OAS 20 期 +214 bps（≥ +75 bps）</td><td class="dt">2026-09-24</td><td class="note note-only">最弱企業的借錢成本在加速惡化</td></tr>
+      <tr><td class="k">HY 速度</td><td class="t-watch">● 亮</td><td>HY OAS 20 期 +63 bps（≥ +30 bps）</td><td class="dt">2026-09-25</td><td class="note note-only">整體垃圾債開始跟上</td></tr>
+      <tr><td class="k">股債背離</td><td class="t-ok">○</td><td>CCC OAS 20 期 +214 bps（≥ +50 bps） 且 Nasdaq 100 自 60 日高點 -5.4%（&gt; -3.0%）</td><td class="dt">—</td><td class="note note-only">信用在惡化，股市還沒反應</td></tr>
+      <tr><td class="k">長端速度</td><td class="t-ok">○</td><td>30Y 殖利率 20 期 +18 bps（≥ +25 bps）</td><td class="dt">—</td><td class="note note-only">折現率在加速上升</td></tr>
+      <tr><td class="k">債市波動</td><td class="t-watch">● 亮</td><td>MOVE 20 期 +20.7（≥ +15.0）</td><td class="dt">2026-09-23</td><td class="note note-only">債市的恐慌在升溫</td></tr>
+    </tbody>
+  </table></div>
+  <div class="ew-record">回測紀錄（2024-08-29 起）：成功 3 · 誤報 1 · 觀察中 0 · 確認 6</div>
+  <div class="wrap"><table>
+    <thead><tr><th>亮起</th><th>結束</th><th>最多幾條</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr><td class="dt">2026-09-23</td><td class="dt">進行中</td><td>5</td><td class="t-watch">提前預警成功：17 個交易日後（2026-10-16）</td></tr>
+      <tr><td class="dt">2026-07-31</td><td class="dt">2026-07-31</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2026-05-18</td><td class="dt">2026-05-18</td><td>2</td><td class="t-watch">提前預警成功：14 個交易日後（2026-06-05）</td></tr>
+      <tr><td class="dt">2026-03-03</td><td class="dt">2026-03-30</td><td>3</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-11-21</td><td class="dt">2025-11-24</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-11-03</td><td class="dt">2025-11-04</td><td>3</td><td class="t-watch">提前預警成功：10 個交易日後（2025-11-17）</td></tr>
+      <tr><td class="dt">2025-10-10</td><td class="dt">2025-10-22</td><td>3</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-03-06</td><td class="dt">2025-04-30</td><td>4</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2025-01-07</td><td class="dt">2025-01-14</td><td>2</td><td class="">確認（亮起時股市已在跌）</td></tr>
+      <tr><td class="dt">2024-10-07</td><td class="dt">2024-11-01</td><td>2</td><td class="">誤報</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="shead"><h3>本次變化</h3><span class="anno">DELTA · 與上次掃描相比</span><span class="anno">SECTION 0</span></div>
+  <p class="lede note-only">自動掃描的重點不在重印水位，而在標出<strong>移動</strong>：階梯升降、引信開關、傳導鏈節點推進，以及超過門檻的數值變動。</p>
+  <div class="changes">
+    <div class="chg-row"><span class="sev sev-info">記錄</span><span>與上次掃描相比沒有實質變化。</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>擁擠層</h3><span class="anno">CROWDING · 槓桿堆在哪裡</span><span class="anno">SECTION A</span></div>
+  <p class="lede note-only">尾部風險無法預測觸發點，但可以監控「槓桿堆在哪裡」。這一層不產生燈號，它決定<strong>一旦有事，瀑布會從哪裡開始</strong>。引信長度＝部位擁擠度；觸發器＝會點燃它的具體事件。</p>
+  <div class="crowd">
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>進行中</div>
+      <h4>AI／半導體估值 ＋ 債務融資</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>超大規模業者 capex 以發債支應；信用利差已開始跑輸大盤。</dd>
+        <dt>觸發器</dt><dd>guidance 不再上調；中國 DUV 微影機進展；單一名字失望。</dd>
+      </dl>
+        <div class="rdout">SOX 自 60 日高點 -14.4% · Nasdaq 100 -5.4%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-watch"><span class="m m-watch"></span>引信極滿</div>
+      <h4>日圓 carry trade</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>利差極大 → 部位持續累積。水位越高，引信越長越滿。</dd>
+        <dt>觸發器</dt><dd>BOJ 升息或當局干預造成日圓瞬間急升。</dd>
+      </dl>
+        <div class="rdout">USD/JPY 158.58 · 5 日 +0.16%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-watch"><span class="m m-watch"></span>需留意</div>
+      <h4>公債基差交易</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>對沖基金高槓桿的長債多基差部位。現代版的英國 LDI。</dd>
+        <dt>觸發器</dt><dd>長端續噴 → 追繳保證金 → 被迫拋售長債 → 螺旋。</dd>
+      </dl>
+        <div class="rdout">MOVE 101.3 · 30Y 5.47%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>未實現虧損擴大</div>
+      <h4>銀行 AFS／HTM 債券帳</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>長天期債券未實現虧損隨 30Y 上升擴大。2023 SVB 的完整機制。</dd>
+        <dt>觸發器</dt><dd>30Y 站穩 5.2% 以上並黏著；區域銀行存款外流。</dd>
+      </dl>
+        <div class="rdout">30Y 5.47% · 20 日 +18bps</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-press"><span class="m m-press"></span>進行中</div>
+      <h4>指數集中度</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>領漲高度集中於 AI 權值股；非權值股獲利成長預期偏高。</dd>
+        <dt>觸發器</dt><dd>單一 AI 名字的失望即可瀑布化。</dd>
+      </dl>
+        <div class="rdout">Nasdaq 100 自 60 日高點 -5.4%</div>
+    </div>
+    <div class="cw">
+      <div class="lv t-ok"><span class="m m-ok"></span>早期分化</div>
+      <h4>私募信用／BDC</h4>
+      <dl class="note-only">
+        <dt>擁擠度</dt><dd>贖回隊伍變長；AI 取代 SaaS 的敘事已寫進部分公司的前瞻指引。</dd>
+        <dt>觸發器</dt><dd>再融資窗口；AI 供給潮推升整體信用利差。</dd>
+      </dl>
+        <div class="rdout">HY − IG 246bps · CCC 1297bps</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>指標盤</h3><span class="anno">GAUGES · TIER 1–5</span><span class="anno">SECTION B</span></div>
+  <p class="lede note-only">標記 <strong>＋</strong> 者為原始十項之外的擴充格。分兩層使用：<strong>盤中引信</strong>（每日、設單日變動警報）＝ USD/JPY 單日 %、10Y／30Y 單日 bps、VIX、MOVE、WTI；<strong>慢燈</strong>（每週）＝ SOFR−IORB、準備金、TGA、失業金。</p>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>指標</th><th>最新</th><th>走勢 · 區間位置</th><th>閾值帶</th><th>燈號</th><th>資料日</th><th>來源</th><th class="note-only">註記</th></tr></thead>
+    <tbody>
+      <tr class="tier"><td colspan="8">TIER 1 — 資金水管 · 慢變數 · 落後但定義危機</td></tr>
+      <tr id="g-sofr_iorb">
+        <td class="k" title="負值＝現金充裕。盯「由負轉正」的翻轉，不是絕對水位。">SOFR − IORB</td>
+        <td class="v t-ok">-2 bps<span class="chg">-1bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 -15 至 8"><line class="zl" x1="0" y1="8.3" x2="104" y2="8.3"/><path class="sl" d="M0.0 8.3L0.6 5.9L1.2 5.1L1.7 5.1L2.3 8.3L2.9 8.3L3.5 9.0L4.1 9.8L4.6 8.3L5.2 8.3L5.8 8.3L6.4 7.5L7.0 3.6L7.6 2.0L8.1 6.7L8.7 7.5L9.3 7.5L9.9 6.7L10.5 6.7L11.0 6.7L11.6 5.9L12.2 3.6L12.8 4.3L13.4 6.7L13.9 7.5L14.5 8.3L15.1 8.3L15.7 9.0L16.3 9.0L16.8 8.3L17.4 8.3L18.0 4.3L18.6 8.3L19.2 10.6L19.8 10.6L20.3 10.6L20.9 10.6L21.5 9.8L22.1 9.0L22.7 8.3L23.2 9.8L23.8 9.8L24.4 5.9L25.0 8.3L25.6 7.5L26.1 8.3L26.7 10.6L27.3 13.0L27.9 14.5L28.5 11.4L29.1 9.8L29.6 7.5L30.2 2.8L30.8 6.7L31.4 8.3L32.0 9.8L32.5 9.8L33.1 9.0L33.7 8.3L34.3 7.5L34.9 7.5L35.4 9.0L36.0 9.8L36.6 7.5L37.2 9.0L37.8 9.8L38.3 10.6L38.9 11.4L39.5 12.2L40.1 12.2L40.7 12.2L41.3 12.2L41.8 13.0L42.4 15.3L43.0 16.1L43.6 17.7L44.2 19.2L44.7 20.0L45.3 19.2L45.9 16.1L46.5 9.8L47.1 9.8L47.6 10.6L48.2 9.8L48.8 8.3L49.4 9.8L50.0 11.4L50.5 10.6L51.1 9.8L51.7 9.8L52.3 12.2L52.9 13.0L53.5 12.2L54.0 8.3L54.6 5.1L55.2 9.8L55.8 9.8L56.4 10.6L56.9 11.4L57.5 10.6L58.1 10.6L58.7 9.0L59.3 10.6L59.8 10.6L60.4 5.9L61.0 7.5L61.6 9.0L62.2 9.8L62.7 10.6L63.3 13.7L63.9 17.7L64.5 16.1L65.1 12.2L65.7 9.8L66.2 9.0L66.8 10.6L67.4 13.0L68.0 14.5L68.6 11.4L69.1 10.6L69.7 9.0L70.3 9.0L70.9 9.0L71.5 8.3L72.0 8.3L72.6 8.3L73.2 7.5L73.8 8.3L74.4 7.5L74.9 9.0L75.5 8.3L76.1 10.6L76.7 9.8L77.3 9.0L77.9 10.6L78.4 10.6L79.0 10.6L79.6 7.5L80.2 8.3L80.8 10.6L81.3 9.8L81.9 8.3L82.5 8.3L83.1 7.5L83.7 9.0L84.2 9.0L84.8 8.3L85.4 5.9L86.0 7.5L86.6 8.3L87.2 7.5L87.7 8.3L88.3 9.0L88.9 9.0L89.5 10.6L90.1 10.6L90.6 10.6L91.2 9.0L91.8 10.6L92.4 12.2L93.0 12.2L93.5 12.2L94.1 10.6L94.7 10.6L95.3 9.8L95.9 8.3L96.4 8.3L97.0 9.8L97.6 8.3L98.2 10.6L98.8 9.8L99.4 9.0L99.9 8.3L100.5 9.8L101.1 10.6L101.7 10.6L102.3 9.0L102.8 9.8L103.4 9.0L104.0 9.8"/><path class="sr t-ok" d="M93.0 12.2L93.5 12.2L94.1 10.6L94.7 10.6L95.3 9.8L95.9 8.3L96.4 8.3L97.0 9.8L97.6 8.3L98.2 10.6L98.8 9.8L99.4 9.0L99.9 8.3L100.5 9.8L101.1 10.6L101.7 10.6L102.3 9.0L102.8 9.8L103.4 9.0L104.0 9.8"/><circle class="sh t-ok" cx="104.0" cy="9.8" r="2.2"/></svg><span class="rg">近 2.4 年區間第 60 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:52.50%"></i><i class="bg-watch" style="width:35.42%"></i><i class="bg-alarm" style="width:12.08%"></i><b style="left:calc(3.51% - 1px)"></b></span><span class="thx note-only">🟢 &lt;+5 ／ 🟡 +5~+10 持續 ／ 🔴 &gt;+10 連 3 日</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · SOFR − IORB</td>
+        <td class="note note-only">負值＝現金充裕。盯「由負轉正」的翻轉，不是絕對水位。</td>
+      </tr>
+      <tr id="g-srf">
+        <td class="k" title="非 FRED，抓 NY Fed desk operations API。報稅日、季底的關鍵日使用屬正常。">SRF 使用量</td>
+        <td class="v t-ok">$0.0B<span class="chg">+0.0</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 66 個觀測走勢，區間 0 至 1.2"><path class="sl" d="M0.0 20.0L1.6 20.0L3.2 20.0L4.8 19.9L6.4 20.0L8.0 19.7L9.6 19.9L11.2 20.0L12.8 19.9L14.4 20.0L16.0 20.0L17.6 20.0L19.2 20.0L20.8 20.0L22.4 20.0L24.0 20.0L25.6 18.5L27.2 20.0L28.8 20.0L30.4 20.0L32.0 20.0L33.6 20.0L35.2 20.0L36.8 20.0L38.4 20.0L40.0 20.0L41.6 20.0L43.2 20.0L44.8 18.5L46.4 20.0L48.0 20.0L49.6 19.8L51.2 20.0L52.8 19.5L54.4 20.0L56.0 20.0L57.6 19.7L59.2 19.9L60.8 20.0L62.4 20.0L64.0 20.0L65.6 18.5L67.2 16.2L68.8 20.0L70.4 20.0L72.0 20.0L73.6 20.0L75.2 20.0L76.8 20.0L78.4 20.0L80.0 20.0L81.6 19.9L83.2 2.0L84.8 20.0L86.4 20.0L88.0 20.0L89.6 20.0L91.2 20.0L92.8 20.0L94.4 20.0L96.0 20.0L97.6 20.0L99.2 20.0L100.8 18.3L102.4 20.0L104.0 19.8"/><path class="sr t-ok" d="M73.6 20.0L75.2 20.0L76.8 20.0L78.4 20.0L80.0 20.0L81.6 19.9L83.2 2.0L84.8 20.0L86.4 20.0L88.0 20.0L89.6 20.0L91.2 20.0L92.8 20.0L94.4 20.0L96.0 20.0L97.6 20.0L99.2 20.0L100.8 18.3L102.4 20.0L104.0 19.8"/><circle class="sh t-ok" cx="104.0" cy="19.8" r="2.2"/></svg><span class="rg">近 0.2 年區間第 83 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:19.58%"></i><i class="bg-press" style="width:39.58%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(14.07% - 1px)"></b></span><span class="thx note-only">🟢 &lt;$5B 偶發 ／ 🟡 &gt;$20B 連續 ／ 🔴 &gt;$50B 或連 5 日</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · NY Fed</td>
+        <td class="note note-only">非 FRED，抓 NY Fed desk operations API。報稅日、季底的關鍵日使用屬正常。</td>
+      </tr>
+      <tr id="g-tga">
+        <td class="k" title="看週變動，不看水位。急抽會直接扣準備金。">TGA 財政部帳戶</td>
+        <td class="v t-ok">$883B<span class="chg">+3</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 125 個觀測走勢，區間 296.2 至 1006"><path class="sl" d="M0.0 9.7L0.8 9.5L1.7 10.4L2.5 9.2L3.4 8.1L4.2 8.2L5.0 8.8L5.9 8.5L6.7 7.9L7.5 7.6L8.4 8.0L9.2 7.4L10.1 8.8L10.9 8.6L11.7 8.9L12.6 8.3L13.4 8.0L14.3 7.1L15.1 7.3L15.9 7.2L16.8 7.4L17.6 6.5L18.5 6.3L19.3 6.2L20.1 6.4L21.0 8.4L21.8 7.9L22.6 7.5L23.5 7.9L24.3 8.0L25.2 8.1L26.0 9.3L26.8 11.0L27.7 11.3L28.5 10.3L29.4 7.6L30.2 7.1L31.0 6.5L31.9 7.5L32.7 10.2L33.5 13.6L34.4 14.5L35.2 16.5L36.1 18.4L36.9 19.6L37.7 19.8L38.6 16.8L39.4 12.1L40.3 12.4L41.1 12.7L41.9 12.9L42.8 14.8L43.6 15.7L44.5 17.9L45.3 19.1L46.1 18.9L47.0 18.3L47.8 18.4L48.6 19.4L49.5 20.0L50.3 19.3L51.2 18.1L52.0 16.8L52.8 14.7L53.7 14.3L54.5 12.5L55.4 12.4L56.2 10.5L57.0 8.3L57.9 7.1L58.7 7.1L59.5 7.0L60.4 7.0L61.2 4.5L62.1 3.2L62.9 3.6L63.7 3.3L64.6 3.6L65.4 4.6L66.3 3.7L67.1 5.7L67.9 6.4L68.8 6.3L69.6 6.3L70.5 7.3L71.3 7.8L72.1 5.5L73.0 4.1L73.8 4.5L74.6 4.3L75.5 4.4L76.3 5.0L77.2 6.4L78.0 6.3L78.8 5.9L79.7 5.3L80.5 6.0L81.4 8.5L82.2 8.5L83.0 2.0L83.9 2.6L84.7 5.3L85.5 6.2L86.4 7.7L87.2 6.5L88.1 5.3L88.9 6.5L89.7 5.2L90.6 4.2L91.4 5.2L92.3 7.9L93.1 8.3L93.9 6.5L94.8 4.4L95.6 4.5L96.5 3.1L97.3 3.3L98.1 3.4L99.0 3.0L99.8 5.1L100.6 5.3L101.5 2.7L102.3 3.5L103.2 5.2L104.0 5.1"/><path class="sr t-ok" d="M88.1 5.3L88.9 6.5L89.7 5.2L90.6 4.2L91.4 5.2L92.3 7.9L93.1 8.3L93.9 6.5L94.8 4.4L95.6 4.5L96.5 3.1L97.3 3.3L98.1 3.4L99.0 3.0L99.8 5.1L100.6 5.3L101.5 2.7L102.3 3.5L103.2 5.2L104.0 5.1"/><circle class="sh t-ok" cx="104.0" cy="5.1" r="2.2"/></svg><span class="rg">近 2.4 年區間第 81 百分位</span></td>
+        <td class="bd"><span class="thx note-only">🟢 緩降／持平 ／ 🟡 +$50B/週 ／ 🔴 搭配其他惡化</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-14</td>
+        <td class="src">每週 · WTREGEN</td>
+        <td class="note note-only">看週變動，不看水位。急抽會直接扣準備金。</td>
+      </tr>
+      <tr id="g-reserves" class="ext">
+        <td class="k" title="SOFR−IORB 的成因指標。能在 SOFR 翻正前幾週看到鋪陳。">準備金餘額</td>
+        <td class="v t-ok">$3022B<span class="chg">-8</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 125 個觀測走勢，區間 2848 至 3475"><path class="sl" d="M0.0 3.9L0.8 3.9L1.7 2.6L2.5 3.2L3.4 6.9L4.2 10.3L5.0 5.8L5.9 6.1L6.7 6.8L7.5 7.2L8.4 5.5L9.2 5.7L10.1 5.4L10.9 6.6L11.7 8.7L12.6 6.4L13.4 6.6L14.3 10.8L15.1 13.1L15.9 10.3L16.8 9.6L17.6 9.0L18.5 8.8L19.3 7.8L20.1 8.6L21.0 7.4L21.8 9.1L22.6 9.2L23.5 8.0L24.3 7.5L25.2 8.5L26.0 12.9L26.8 8.3L27.7 5.8L28.5 6.1L29.4 9.2L30.2 10.5L31.0 9.3L31.9 7.9L32.7 6.2L33.5 6.7L34.4 4.1L35.2 2.2L36.1 2.7L36.9 4.7L37.7 2.0L38.6 2.7L39.4 8.3L40.3 9.3L41.1 9.4L41.9 8.9L42.8 7.3L43.6 7.9L44.5 7.2L45.3 3.9L46.1 4.0L47.0 5.0L47.8 9.1L48.6 6.1L49.5 4.2L50.3 5.2L51.2 5.7L52.0 6.1L52.8 6.4L53.7 6.5L54.5 9.2L55.4 10.4L56.2 11.0L57.0 13.5L57.9 15.6L58.7 16.6L59.5 15.7L60.4 15.1L61.2 17.6L62.1 20.0L62.9 19.6L63.7 19.8L64.6 18.8L65.4 18.6L66.3 19.7L67.1 17.6L67.9 16.8L68.8 16.9L69.6 16.9L70.5 15.7L71.3 14.2L72.1 16.9L73.0 18.5L73.8 17.8L74.6 17.4L75.5 17.1L76.3 16.6L77.2 15.2L78.0 14.6L78.8 15.1L79.7 15.8L80.5 14.9L81.4 12.3L82.2 11.9L83.0 18.5L83.9 18.0L84.7 14.7L85.5 12.7L86.4 11.9L87.2 13.7L88.1 15.2L88.9 13.3L89.7 14.7L90.6 17.0L91.4 16.6L92.3 12.8L93.1 11.5L93.9 13.8L94.8 16.1L95.6 15.8L96.5 17.2L97.3 17.5L98.1 17.8L99.0 18.7L99.8 15.9L100.6 15.2L101.5 17.6L102.3 17.1L103.2 14.8L104.0 15.0"/><path class="sr t-ok" d="M88.1 15.2L88.9 13.3L89.7 14.7L90.6 17.0L91.4 16.6L92.3 12.8L93.1 11.5L93.9 13.8L94.8 16.1L95.6 15.8L96.5 17.2L97.3 17.5L98.1 17.8L99.0 18.7L99.8 15.9L100.6 15.2L101.5 17.6L102.3 17.1L103.2 14.8L104.0 15.0"/><circle class="sh t-ok" cx="104.0" cy="15.0" r="2.2"/></svg><span class="rg">近 2.4 年區間第 32 百分位</span></td>
+        <td class="bd"><span class="thx note-only">觀察下降斜率，非絕對水位</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>充裕</td>
+        <td class="dt">2026-10-14</td>
+        <td class="src">每週三 · WRESBAL</td>
+        <td class="note note-only">SOFR−IORB 的成因指標。能在 SOFR 翻正前幾週看到鋪陳。</td>
+      </tr>
+      <tr id="g-rrp" class="ext">
+        <td class="k" title="過去縮表先抽 RRP、抽完才輪到準備金。緩衝墊沒了＝縮表直接咬進準備金。">ON RRP</td>
+        <td class="v t-watch">$0B<span class="chg">+0</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 0.03 至 26.9"><path class="sl" d="M0.0 13.6L0.6 13.0L1.2 18.8L1.7 18.4L2.3 18.8L2.9 17.9L3.5 19.1L4.1 19.1L4.6 19.3L5.2 18.1L5.8 19.8L6.4 19.7L7.0 19.4L7.6 19.6L8.1 19.7L8.7 19.4L9.3 19.4L9.9 19.2L10.5 17.5L11.0 9.1L11.6 19.6L12.2 19.2L12.8 19.4L13.4 18.1L13.9 19.0L14.5 19.8L15.1 19.8L15.7 19.7L16.3 19.9L16.8 19.7L17.4 19.6L18.0 19.5L18.6 19.6L19.2 19.6L19.8 19.5L20.3 19.4L20.9 19.3L21.5 19.5L22.1 19.4L22.7 19.4L23.2 19.5L23.8 9.4L24.4 18.6L25.0 19.8L25.6 19.9L26.1 9.7L26.7 19.9L27.3 19.8L27.9 19.7L28.5 19.9L29.1 19.8L29.6 19.9L30.2 19.9L30.8 19.9L31.4 19.7L32.0 19.5L32.5 19.7L33.1 19.9L33.7 20.0L34.3 19.8L34.9 19.6L35.4 19.5L36.0 14.5L36.6 19.6L37.2 19.6L37.8 19.3L38.3 18.9L38.9 19.5L39.5 19.5L40.1 19.3L40.7 19.2L41.3 17.5L41.8 18.7L42.4 19.6L43.0 15.2L43.6 11.4L44.2 3.4L44.7 17.8L45.3 19.4L45.9 18.8L46.5 18.8L47.1 19.2L47.6 12.2L48.2 19.1L48.8 18.3L49.4 18.6L50.0 19.3L50.5 19.5L51.1 18.8L51.7 19.6L52.3 19.8L52.9 19.7L53.5 19.7L54.0 19.6L54.6 12.8L55.2 15.4L55.8 19.9L56.4 17.4L56.9 15.7L57.5 17.0L58.1 16.2L58.7 15.7L59.3 17.6L59.8 2.0L60.4 19.3L61.0 18.6L61.6 18.2L62.2 17.0L62.7 17.8L63.3 16.2L63.9 19.7L64.5 19.5L65.1 19.8L65.7 19.9L66.2 19.9L66.8 20.0L67.4 20.0L68.0 19.8L68.6 19.8L69.1 19.4L69.7 19.6L70.3 19.1L70.9 19.3L71.5 18.3L72.0 19.3L72.6 18.6L73.2 18.6L73.8 18.5L74.4 18.9L74.9 19.1L75.5 19.0L76.1 19.4L76.7 19.2L77.3 19.5L77.9 19.7L78.4 19.9L79.0 19.8L79.6 19.9L80.2 19.8L80.8 19.9L81.3 19.9L81.9 19.8L82.5 19.7L83.1 19.5L83.7 19.7L84.2 19.9L84.8 15.5L85.4 19.5L86.0 19.7L86.6 19.5L87.2 19.6L87.7 19.6L88.3 19.7L88.9 16.8L89.5 16.5L90.1 19.1L90.6 19.6L91.2 16.4L91.8 19.8L92.4 19.6L93.0 19.6L93.5 19.7L94.1 19.7L94.7 19.6L95.3 19.6L95.9 19.5L96.4 12.4L97.0 12.3L97.6 19.8L98.2 19.0L98.8 19.3L99.4 19.7L99.9 18.5L100.5 19.8L101.1 19.8L101.7 19.8L102.3 19.9L102.8 19.2L103.4 20.0L104.0 19.8"/><path class="sr t-watch" d="M93.0 19.6L93.5 19.7L94.1 19.7L94.7 19.6L95.3 19.6L95.9 19.5L96.4 12.4L97.0 12.3L97.6 19.8L98.2 19.0L98.8 19.3L99.4 19.7L99.9 18.5L100.5 19.8L101.1 19.8L101.7 19.8L102.3 19.9L102.8 19.2L103.4 20.0L104.0 19.8"/><circle class="sh t-watch" cx="104.0" cy="19.8" r="2.2"/></svg><span class="rg">近 2.4 年區間第 5 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-watch" style="width:75.83%"></i><i class="bg-ok" style="width:24.17%"></i><b style="left:calc(6.93% - 1px)"></b></span><span class="thx note-only">歸零＝縮表緩衝墊消失</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>緩衝已失</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · RRPONTSYD</td>
+        <td class="note note-only">過去縮表先抽 RRP、抽完才輪到準備金。緩衝墊沒了＝縮表直接咬進準備金。</td>
+      </tr>
+      <tr id="g-net_liquidity" class="ext">
+        <td class="k" title="替代 M2 的正確口徑。M2 量的是非銀行大眾持有的錢，與 repo／準備金是兩個系統。">淨流動性</td>
+        <td class="v t-ok">$5872B<span class="chg">+7</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 122 個觀測走勢，區間 5596 至 6253"><path class="sl" d="M0.0 5.6L0.9 4.2L1.7 5.2L2.6 9.6L3.4 8.0L4.3 7.1L5.2 7.4L6.0 8.1L6.9 9.5L7.7 5.7L8.6 7.4L9.5 6.7L10.3 9.3L11.2 7.8L12.0 6.8L12.9 8.1L13.8 12.9L14.6 12.6L15.5 11.6L16.3 9.6L17.2 10.9L18.0 10.3L18.9 9.6L19.8 11.8L20.6 10.2L21.5 10.0L22.3 10.5L23.2 10.5L24.1 9.2L24.9 8.5L25.8 6.9L26.6 8.1L27.5 11.3L28.4 10.9L29.2 11.2L30.1 11.2L30.9 10.1L31.8 7.0L32.7 5.8L33.5 5.5L34.4 5.1L35.2 4.1L36.1 2.0L37.0 2.1L37.8 10.3L38.7 12.7L39.5 9.7L40.4 9.7L41.3 8.3L42.1 8.0L43.0 5.5L43.8 5.1L44.7 5.2L45.6 6.6L46.4 7.2L47.3 5.8L48.1 4.4L49.0 5.0L49.9 5.7L50.7 5.4L51.6 6.7L52.4 7.2L53.3 9.5L54.1 9.3L55.0 11.6L55.9 13.4L56.7 15.1L57.6 15.2L58.4 15.0L59.3 14.9L60.2 17.8L61.0 19.6L61.9 19.4L62.7 19.3L63.6 19.6L64.5 18.6L65.3 20.0L66.2 17.8L67.0 16.8L67.9 16.1L68.8 17.2L69.6 15.2L70.5 14.4L71.3 16.8L72.2 18.2L73.1 17.3L73.9 17.0L74.8 17.2L75.6 16.5L76.5 14.5L77.4 14.2L78.2 14.4L79.1 14.9L79.9 13.7L80.8 10.4L81.7 10.2L82.5 17.1L83.4 16.7L84.2 13.6L85.1 12.1L86.0 11.5L86.8 12.4L87.7 13.5L88.5 11.8L89.4 13.1L90.2 14.1L91.1 13.2L92.0 10.1L92.8 9.3L93.7 11.2L94.5 13.7L95.4 13.3L96.3 14.5L97.1 14.6L98.0 15.0L98.8 15.3L99.7 12.9L100.6 12.7L101.4 15.2L102.3 14.9L103.1 12.6L104.0 12.4"/><path class="sr t-ok" d="M87.7 13.5L88.5 11.8L89.4 13.1L90.2 14.1L91.1 13.2L92.0 10.1L92.8 9.3L93.7 11.2L94.5 13.7L95.4 13.3L96.3 14.5L97.1 14.6L98.0 15.0L98.8 15.3L99.7 12.9L100.6 12.7L101.4 15.2L102.3 14.9L103.1 12.6L104.0 12.4"/><circle class="sh t-ok" cx="104.0" cy="12.4" r="2.2"/></svg><span class="rg">近 2.4 年區間第 41 百分位</span></td>
+        <td class="bd"><span class="thx note-only">趨勢指標，觀察 4 週方向</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>持平／擴張</td>
+        <td class="dt">2026-10-14</td>
+        <td class="src">每週 · WALCL−WTREGEN−RRPONTSYD</td>
+        <td class="note note-only">替代 M2 的正確口徑。M2 量的是非銀行大眾持有的錢，與 repo／準備金是兩個系統。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 2 — 信用 · 中期領先 1–4 週 · 所有崩盤的領先指標</td></tr>
+      <tr id="g-hy_oas">
+        <td class="k" title="特性：從緊到擴張很快，一旦動就是大幅度。FRED 自 2026/4 起僅保留近 3 年觀測值，本腳本會自行累積歷史。">HY OAS ⭐</td>
+        <td class="v t-ok">331 bps<span class="chg">+8bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 260 至 346"><path class="sl" d="M0.0 15.0L0.6 13.3L1.2 12.7L1.7 12.9L2.3 12.9L2.9 14.6L3.5 14.1L4.1 14.6L4.6 12.7L5.2 12.3L5.8 12.9L6.4 12.0L7.0 9.5L7.6 9.1L8.1 11.0L8.7 10.0L9.3 12.3L9.9 11.6L10.5 8.9L11.0 7.7L11.6 10.4L12.2 9.7L12.8 8.1L13.4 5.8L13.9 6.0L14.5 7.0L15.1 7.4L15.7 6.0L16.3 6.6L16.8 7.7L17.4 7.7L18.0 8.1L18.6 7.2L19.2 2.8L19.8 2.0L20.3 5.8L20.9 8.3L21.5 8.1L22.1 8.9L22.7 10.6L23.2 9.1L23.8 12.9L24.4 13.7L25.0 12.9L25.6 12.7L26.1 15.0L26.7 14.8L27.3 14.6L27.9 15.2L28.5 14.3L29.1 14.8L29.6 15.0L30.2 14.6L30.8 14.6L31.4 15.0L32.0 14.8L32.5 15.4L33.1 15.2L33.7 16.4L34.3 16.2L34.9 16.4L35.4 16.9L36.0 16.0L36.6 15.6L37.2 16.0L37.8 15.4L38.3 15.4L38.9 16.7L39.5 15.8L40.1 15.2L40.7 14.6L41.3 15.8L41.8 16.2L42.4 17.1L43.0 17.1L43.6 17.5L44.2 17.7L44.7 17.5L45.3 17.5L45.9 17.1L46.5 17.5L47.1 17.7L47.6 16.9L48.2 17.1L48.8 16.7L49.4 16.9L50.0 16.2L50.5 15.8L51.1 16.2L51.7 17.7L52.3 18.7L52.9 17.7L53.5 19.4L54.0 18.7L54.6 18.7L55.2 19.0L55.8 17.7L56.4 16.7L56.9 16.2L57.5 15.2L58.1 15.8L58.7 16.9L59.3 17.1L59.8 16.9L60.4 17.1L61.0 17.5L61.6 18.5L62.2 17.9L62.7 17.9L63.3 18.1L63.9 18.1L64.5 17.5L65.1 17.7L65.7 17.7L66.2 17.3L66.8 18.1L67.4 18.1L68.0 18.3L68.6 16.4L69.1 16.0L69.7 15.6L70.3 15.0L70.9 14.3L71.5 15.0L72.0 14.8L72.6 16.2L73.2 17.3L73.8 16.9L74.4 17.7L74.9 17.9L75.5 17.9L76.1 17.5L76.7 17.7L77.3 17.7L77.9 18.5L78.4 17.9L79.0 16.9L79.6 17.3L80.2 16.9L80.8 17.9L81.3 18.1L81.9 17.9L82.5 18.5L83.1 19.4L83.7 20.0L84.2 19.4L84.8 19.0L85.4 18.7L86.0 19.0L86.6 18.3L87.2 18.3L87.7 18.5L88.3 17.7L88.9 17.9L89.5 19.0L90.1 17.7L90.6 16.7L91.2 17.9L91.8 17.9L92.4 18.3L93.0 18.7L93.5 18.3L94.1 17.3L94.7 15.8L95.3 13.1L95.9 11.2L96.4 10.0L97.0 9.1L97.6 6.6L98.2 9.5L98.8 9.1L99.4 11.0L99.9 9.7L100.5 8.5L101.1 9.3L101.7 9.3L102.3 8.3L102.8 6.4L103.4 6.8L104.0 5.1"/><path class="sr t-ok" d="M93.0 18.7L93.5 18.3L94.1 17.3L94.7 15.8L95.3 13.1L95.9 11.2L96.4 10.0L97.0 9.1L97.6 6.6L98.2 9.5L98.8 9.1L99.4 11.0L99.9 9.7L100.5 8.5L101.1 9.3L101.7 9.3L102.3 8.3L102.8 6.4L103.4 6.8L104.0 5.1"/><circle class="sh t-ok" cx="104.0" cy="5.1" r="2.2"/></svg><span class="rg">近 2.4 年區間第 91 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:23.75%"></i><i class="bg-press" style="width:35.42%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(16.12% - 1px)"></b></span><span class="thx note-only">🟢 &lt;350 ／ 🟡 350–450 ／ 🟠 450–600（減倉）／ 🔴 &gt;600</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>寬鬆</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · BAMLH0A0HYM2</td>
+        <td class="note note-only">特性：從緊到擴張很快，一旦動就是大幅度。FRED 自 2026/4 起僅保留近 3 年觀測值，本腳本會自行累積歷史。</td>
+      </tr>
+      <tr id="g-ig_oas">
+        <td class="k" title="AI 相關發行供給潮是今年最大的技術面變數。">IG OAS</td>
+        <td class="v t-ok">85 bps<span class="chg">+1bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 73 至 94"><path class="sl" d="M0.0 16.6L0.6 15.7L1.2 14.9L1.7 14.9L2.3 14.0L2.9 15.7L3.5 14.9L4.1 15.7L4.6 14.0L5.2 13.1L5.8 14.0L6.4 12.3L7.0 9.7L7.6 8.9L8.1 9.7L8.7 10.6L9.3 12.3L9.9 12.3L10.5 10.6L11.0 9.7L11.6 10.6L12.2 7.1L12.8 4.6L13.4 2.9L13.9 2.0L14.5 3.7L15.1 4.6L15.7 5.4L16.3 7.1L16.8 7.1L17.4 8.0L18.0 8.0L18.6 7.1L19.2 4.6L19.8 2.9L20.3 5.4L20.9 8.0L21.5 8.9L22.1 8.9L22.7 9.7L23.2 8.9L23.8 11.4L24.4 11.4L25.0 12.3L25.6 12.3L26.1 13.1L26.7 14.0L27.3 13.1L27.9 14.0L28.5 13.1L29.1 14.0L29.6 14.9L30.2 14.0L30.8 14.0L31.4 13.1L32.0 13.1L32.5 13.1L33.1 13.1L33.7 13.1L34.3 14.0L34.9 14.9L35.4 15.7L36.0 14.9L36.6 14.9L37.2 15.7L37.8 16.6L38.3 17.4L38.9 17.4L39.5 18.3L40.1 18.3L40.7 17.4L41.3 18.3L41.8 18.3L42.4 19.1L43.0 19.1L43.6 19.1L44.2 19.1L44.7 20.0L45.3 20.0L45.9 19.1L46.5 20.0L47.1 19.1L47.6 19.1L48.2 19.1L48.8 19.1L49.4 18.3L50.0 18.3L50.5 18.3L51.1 18.3L51.7 19.1L52.3 20.0L52.9 18.3L53.5 19.1L54.0 19.1L54.6 19.1L55.2 19.1L55.8 19.1L56.4 18.3L56.9 17.4L57.5 16.6L58.1 17.4L58.7 17.4L59.3 17.4L59.8 18.3L60.4 18.3L61.0 18.3L61.6 17.4L62.2 17.4L62.7 17.4L63.3 16.6L63.9 15.7L64.5 14.9L65.1 14.9L65.7 15.7L66.2 14.9L66.8 15.7L67.4 15.7L68.0 15.7L68.6 14.9L69.1 14.0L69.7 13.1L70.3 13.1L70.9 13.1L71.5 14.0L72.0 14.9L72.6 15.7L73.2 15.7L73.8 15.7L74.4 15.7L74.9 15.7L75.5 15.7L76.1 14.9L76.7 14.9L77.3 14.9L77.9 14.0L78.4 13.1L79.0 12.3L79.6 13.1L80.2 12.3L80.8 13.1L81.3 13.1L81.9 13.1L82.5 14.0L83.1 14.9L83.7 14.9L84.2 14.0L84.8 13.1L85.4 13.1L86.0 13.1L86.6 13.1L87.2 13.1L87.7 13.1L88.3 13.1L88.9 14.0L89.5 14.0L90.1 14.0L90.6 14.0L91.2 15.7L91.8 15.7L92.4 16.6L93.0 16.6L93.5 16.6L94.1 16.6L94.7 14.9L95.3 13.1L95.9 11.4L96.4 10.6L97.0 10.6L97.6 8.9L98.2 9.7L98.8 10.6L99.4 11.4L99.9 12.3L100.5 12.3L101.1 11.4L101.7 11.4L102.3 11.4L102.8 10.6L103.4 10.6L104.0 9.7"/><path class="sr t-ok" d="M93.0 16.6L93.5 16.6L94.1 16.6L94.7 14.9L95.3 13.1L95.9 11.4L96.4 10.6L97.0 10.6L97.6 8.9L98.2 9.7L98.8 10.6L99.4 11.4L99.9 12.3L100.5 12.3L101.1 11.4L101.7 11.4L102.3 11.4L102.8 10.6L103.4 10.6L104.0 9.7"/><circle class="sh t-ok" cx="104.0" cy="9.7" r="2.2"/></svg><span class="rg">近 2.4 年區間第 64 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:22.92%"></i><i class="bg-watch" style="width:57.08%"></i><i class="bg-alarm" style="width:20.00%"></i><b style="left:calc(5.71% - 1px)"></b></span><span class="thx note-only">🟢 &lt;100 ／ 🟡 100–130 ／ 🔴 &gt;150</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · BAMLC0A0CM</td>
+        <td class="note note-only">AI 相關發行供給潮是今年最大的技術面變數。</td>
+      </tr>
+      <tr id="g-ccc_oas" class="ext">
+        <td class="k" title="指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。">CCC OAS</td>
+        <td class="v t-watch">1297 bps<span class="chg">+19bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 885 至 1297"><path class="sl" d="M0.0 20.0L0.6 19.5L1.2 19.1L1.7 19.5L2.3 19.3L2.9 19.9L3.5 19.9L4.1 19.9L4.6 19.2L5.2 18.7L5.8 18.6L6.4 18.2L7.0 17.2L7.6 17.1L8.1 17.4L8.7 16.9L9.3 17.5L9.9 17.4L10.5 16.8L11.0 16.3L11.6 17.4L12.2 17.4L12.8 16.7L13.4 15.9L13.9 16.2L14.5 16.6L15.1 16.5L15.7 16.0L16.3 15.9L16.8 16.1L17.4 16.0L18.0 16.1L18.6 15.7L19.2 14.4L19.8 14.1L20.3 15.2L20.9 15.8L21.5 15.5L22.1 15.5L22.7 16.0L23.2 15.7L23.8 17.0L24.4 17.3L25.0 17.0L25.6 16.8L26.1 18.0L26.7 18.3L27.3 18.4L27.9 18.8L28.5 18.7L29.1 18.8L29.6 18.8L30.2 18.7L30.8 18.6L31.4 19.0L32.0 18.9L32.5 19.0L33.1 19.0L33.7 19.2L34.3 18.9L34.9 18.9L35.4 19.0L36.0 18.7L36.6 18.5L37.2 18.0L37.8 17.7L38.3 18.0L38.9 18.4L39.5 17.8L40.1 17.5L40.7 17.2L41.3 17.6L41.8 17.6L42.4 17.6L43.0 17.6L43.6 17.8L44.2 17.8L44.7 17.8L45.3 17.7L45.9 17.6L46.5 17.3L47.1 17.4L47.6 17.3L48.2 17.3L48.8 17.1L49.4 17.2L50.0 17.1L50.5 16.9L51.1 16.9L51.7 17.2L52.3 17.7L52.9 17.4L53.5 17.6L54.0 17.3L54.6 17.3L55.2 17.3L55.8 16.9L56.4 16.5L56.9 16.4L57.5 16.2L58.1 16.4L58.7 16.3L59.3 16.4L59.8 16.2L60.4 16.3L61.0 16.4L61.6 16.5L62.2 16.1L62.7 16.1L63.3 16.3L63.9 16.2L64.5 16.2L65.1 16.3L65.7 16.3L66.2 16.1L66.8 16.0L67.4 15.9L68.0 15.8L68.6 15.4L69.1 15.2L69.7 14.9L70.3 14.8L70.9 14.4L71.5 14.7L72.0 13.5L72.6 13.8L73.2 14.1L73.8 14.0L74.4 14.2L74.9 14.4L75.5 14.4L76.1 14.0L76.7 14.1L77.3 13.9L77.9 14.5L78.4 14.2L79.0 13.8L79.6 13.7L80.2 13.4L80.8 13.4L81.3 13.4L81.9 13.3L82.5 13.6L83.1 13.6L83.7 13.8L84.2 13.1L84.8 12.8L85.4 12.7L86.0 12.7L86.6 12.6L87.2 12.6L87.7 12.5L88.3 12.2L88.9 11.9L89.5 11.7L90.1 11.4L90.6 11.3L91.2 11.7L91.8 11.7L92.4 11.3L93.0 11.6L93.5 11.7L94.1 10.9L94.7 10.1L95.3 9.4L95.9 8.6L96.4 8.1L97.0 7.2L97.6 5.6L98.2 6.2L98.8 5.8L99.4 5.6L99.9 5.0L100.5 4.0L101.1 3.9L101.7 3.9L102.3 3.3L102.8 2.7L103.4 2.8L104.0 2.0"/><path class="sr t-watch" d="M93.0 11.6L93.5 11.7L94.1 10.9L94.7 10.1L95.3 9.4L95.9 8.6L96.4 8.1L97.0 7.2L97.6 5.6L98.2 6.2L98.8 5.8L99.4 5.6L99.9 5.0L100.5 4.0L101.1 3.9L101.7 3.9L102.3 3.3L102.8 2.7L103.4 2.8L104.0 2.0"/><circle class="sh t-watch" cx="104.0" cy="2.0" r="2.2"/></svg><span class="rg">近 2.4 年區間第 100 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:23.75%"></i><i class="bg-press" style="width:35.42%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(43.76% - 1px)"></b></span><span class="thx note-only">🟢 &lt;1100 ／ 🟡 1100–1300 ／ 🟠 1300–1600 ／ 🔴 &gt;1600</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>底層分化</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · BAMLH0A3HYC</td>
+        <td class="note note-only">指數層級太鈍，catch 不到底下的分化。AI 信用事件會先在這裡亮燈。</td>
+      </tr>
+      <tr id="g-hy_ig" class="ext">
+        <td class="k" title="位於 2009 後區間的緊端時，代表信用循環尚未轉向。">HY − IG 差</td>
+        <td class="v t-ok">246 bps<span class="chg">+7bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 181 至 253"><path class="sl" d="M0.0 13.5L0.6 11.8L1.2 11.2L1.7 11.5L2.3 11.8L2.9 13.2L3.5 13.0L4.1 13.2L4.6 11.5L5.2 11.2L5.8 11.8L6.4 11.2L7.0 9.0L7.6 8.8L8.1 10.8L8.7 9.2L9.3 11.5L9.9 10.8L10.5 8.0L11.0 6.8L11.6 9.8L12.2 10.0L12.8 8.8L13.4 6.5L13.9 7.0L14.5 7.8L15.1 8.0L15.7 6.0L16.3 6.2L16.8 7.5L17.4 7.2L18.0 7.8L18.6 7.0L19.2 2.5L19.8 2.0L20.3 5.8L20.9 8.0L21.5 7.5L22.1 8.5L22.7 10.2L23.2 8.8L23.8 12.5L24.4 13.5L25.0 12.2L25.6 12.0L26.1 14.5L26.7 14.0L27.3 14.0L27.9 14.5L28.5 13.8L29.1 14.0L29.6 14.0L30.2 13.8L30.8 13.8L31.4 14.5L32.0 14.2L32.5 15.0L33.1 14.8L33.7 16.2L34.3 15.8L34.9 15.8L35.4 16.0L36.0 15.2L36.6 14.8L37.2 15.0L37.8 14.0L38.3 13.8L38.9 15.2L39.5 14.0L40.1 13.2L40.7 12.8L41.3 14.0L41.8 14.5L42.4 15.2L43.0 15.2L43.6 15.8L44.2 16.0L44.7 15.5L45.3 15.5L45.9 15.2L46.5 15.5L47.1 16.0L47.6 15.0L48.2 15.2L48.8 14.8L49.4 15.2L50.0 14.5L50.5 14.0L51.1 14.5L51.7 16.0L52.3 17.0L52.9 16.2L53.5 18.0L54.0 17.2L54.6 17.2L55.2 17.5L55.8 16.0L56.4 15.0L56.9 14.8L57.5 13.8L58.1 14.2L58.7 15.5L59.3 15.8L59.8 15.2L60.4 15.5L61.0 16.0L61.6 17.5L62.2 16.8L62.7 16.8L63.3 17.2L63.9 17.5L64.5 17.0L65.1 17.2L65.7 17.0L66.2 16.8L66.8 17.5L67.4 17.5L68.0 17.8L68.6 15.8L69.1 15.5L69.7 15.2L70.3 14.5L70.9 13.8L71.5 14.2L72.0 13.8L72.6 15.2L73.2 16.5L73.8 16.0L74.4 17.0L74.9 17.2L75.5 17.2L76.1 17.0L76.7 17.2L77.3 17.2L77.9 18.5L78.4 18.0L79.0 17.0L79.6 17.2L80.2 17.0L80.8 18.0L81.3 18.2L81.9 18.0L82.5 18.5L83.1 19.2L83.7 20.0L84.2 19.5L84.8 19.2L85.4 19.0L86.0 19.2L86.6 18.5L87.2 18.5L87.7 18.8L88.3 17.8L88.9 17.8L89.5 19.0L90.1 17.5L90.6 16.2L91.2 17.2L91.8 17.2L92.4 17.5L93.0 18.0L93.5 17.5L94.1 16.2L94.7 15.0L95.3 12.2L95.9 10.5L96.4 9.2L97.0 8.2L97.6 5.8L98.2 9.0L98.8 8.2L99.4 10.2L99.9 8.5L100.5 7.0L101.1 8.2L101.7 8.2L102.3 7.0L102.8 5.0L103.4 5.5L104.0 3.8"/><path class="sr t-ok" d="M93.0 18.0L93.5 17.5L94.1 16.2L94.7 15.0L95.3 12.2L95.9 10.5L96.4 9.2L97.0 8.2L97.6 5.8L98.2 9.0L98.8 8.2L99.4 10.2L99.9 8.5L100.5 7.0L101.1 8.2L101.7 8.2L102.3 7.0L102.8 5.0L103.4 5.5L104.0 3.8"/><circle class="sh t-ok" cx="104.0" cy="3.8" r="2.2"/></svg><span class="rg">近 2.4 年區間第 93 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:32.08%"></i><i class="bg-watch" style="width:50.42%"></i><i class="bg-press" style="width:17.50%"></i><b style="left:calc(5.03% - 1px)"></b></span><span class="thx note-only">持續擴張＝信用循環轉折</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · 兩者相減</td>
+        <td class="note note-only">位於 2009 後區間的緊端時，代表信用循環尚未轉向。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 3 — 波動率 · 事件驅動 · 可於數小時內動作</td></tr>
+      <tr id="g-move">
+        <td class="k" title="通常領先 VIX 1–3 週。FRED 沒有此系列，走 Yahoo。Yahoo 的 ^MOVE 會正常回應但整段停更（實測停在 7/17 超過三週），過期時請改看下一格的 VXTLT——它是不同尺標的替代讀數，不是同一個數字。">MOVE ⭐</td>
+        <td class="v t-watch">101.3<span class="chg">+0.2</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 57.51 至 115"><path class="sl" d="M0.0 19.5L0.6 19.4L1.2 20.0L1.7 20.0L2.3 18.5L2.9 18.1L3.5 18.4L4.1 17.8L4.6 18.8L5.2 16.5L5.8 16.1L6.4 16.5L7.0 17.9L7.6 16.7L8.1 17.9L8.7 16.7L9.3 17.6L9.9 18.5L10.5 18.0L11.0 15.0L11.6 15.1L12.2 13.7L12.8 16.1L13.4 14.7L13.9 12.6L14.5 13.0L15.1 14.1L15.7 13.4L16.3 8.2L16.8 9.5L17.4 11.3L18.0 13.2L18.6 12.6L19.2 11.4L19.8 3.9L20.3 7.3L20.9 5.8L21.5 7.5L22.1 2.0L22.7 3.0L23.2 4.1L23.8 7.9L24.4 9.8L25.0 11.6L25.6 12.4L26.1 12.0L26.7 13.4L27.3 14.8L27.9 15.4L28.5 14.7L29.1 14.7L29.6 16.7L30.2 17.4L30.8 17.4L31.4 16.7L32.0 15.8L32.5 16.1L33.1 16.8L33.7 17.0L34.3 16.6L34.9 16.5L35.4 14.7L36.0 15.4L36.6 16.0L37.2 13.6L37.8 14.0L38.3 15.9L38.9 15.4L39.5 17.0L40.1 15.9L40.7 15.6L41.3 16.0L41.8 16.2L42.4 13.0L43.0 11.1L43.6 11.3L44.2 12.5L44.7 13.0L45.3 13.5L45.9 14.5L46.5 15.8L47.1 16.2L47.6 16.0L48.2 15.0L48.8 15.0L49.4 15.0L50.0 15.7L50.5 14.5L51.1 13.9L51.7 13.9L52.3 14.9L52.9 16.3L53.5 16.3L54.0 16.3L54.6 16.9L55.2 15.9L55.8 17.5L56.4 16.1L56.9 16.5L57.5 16.4L58.1 17.0L58.7 17.1L59.3 16.7L59.8 15.5L60.4 16.5L61.0 17.5L61.6 17.4L62.2 16.0L62.7 15.3L63.3 16.4L63.9 16.2L64.5 13.7L65.1 14.5L65.7 16.6L66.2 16.7L66.8 15.8L67.4 15.3L68.0 14.6L68.6 14.1L69.1 12.9L69.7 14.0L70.3 13.8L70.9 14.2L71.5 14.8L72.0 13.9L72.6 12.0L73.2 12.8L73.8 13.7L74.4 15.0L74.9 14.2L75.5 15.5L76.1 14.4L76.7 13.6L77.3 15.4L77.9 16.3L78.4 16.2L79.0 14.3L79.6 14.5L80.2 15.7L80.8 15.1L81.3 15.0L81.9 14.8L82.5 15.5L83.1 16.3L83.7 16.1L84.2 15.8L84.8 14.4L85.4 13.6L86.0 13.1L86.6 14.6L87.2 15.1L87.7 14.2L88.3 14.0L88.9 12.3L89.5 12.3L90.1 11.7L90.6 11.8L91.2 12.7L91.8 14.1L92.4 12.8L93.0 12.6L93.5 13.4L94.1 8.1L94.7 5.3L95.3 8.0L95.9 6.1L96.4 4.6L97.0 3.4L97.6 4.2L98.2 4.4L98.8 2.4L99.4 5.1L99.9 5.9L100.5 6.5L101.1 7.2L101.7 6.4L102.3 7.0L102.8 5.9L103.4 6.4L104.0 6.3"/><path class="sr t-watch" d="M93.0 12.6L93.5 13.4L94.1 8.1L94.7 5.3L95.3 8.0L95.9 6.1L96.4 4.6L97.0 3.4L97.6 4.2L98.2 4.4L98.8 2.4L99.4 5.1L99.9 5.9L100.5 6.5L101.1 7.2L101.7 6.4L102.3 7.0L102.8 5.9L103.4 6.4L104.0 6.3"/><circle class="sh t-watch" cx="104.0" cy="6.3" r="2.2"/></svg><span class="rg">近 2.2 年區間第 78 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:35.42%"></i><i class="bg-press" style="width:23.75%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(22.12% - 1px)"></b></span><span class="thx note-only">🟢 &lt;100 ／ 🟡 100–130 ／ 🟠 130–150 ／ 🔴 &gt;150</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>警示</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · ^MOVE</td>
+        <td class="note note-only">通常領先 VIX 1–3 週。FRED 沒有此系列，走 Yahoo。Yahoo 的 ^MOVE 會正常回應但整段停更（實測停在 7/17 超過三週），過期時請改看下一格的 VXTLT——它是不同尺標的替代讀數，不是同一個數字。</td>
+      </tr>
+      <tr id="g-vxtlt" class="ext">
+        <td class="k" title="MOVE 停更時的替代讀數。量的是 TLT（20 年期公債 ETF）的隱含波動，單位是百分比，跟 MOVE 的基點波動不同尺標，兩個數字不能直接比大小——看的是「同時間它在自己的區間裡站多高」。">VXTLT（MOVE 備援）</td>
+        <td class="v t-ok">14.6<span class="chg">-0.9</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 45 個觀測走勢，區間 10.95 至 18.3"><path class="sl" d="M0.0 19.1L2.4 16.8L4.7 16.5L7.1 18.3L9.5 20.0L11.8 17.8L14.2 16.0L16.5 17.8L18.9 18.3L21.3 16.7L23.6 17.6L26.0 17.1L28.4 17.0L30.7 17.1L33.1 17.3L35.5 18.8L37.8 17.7L40.2 16.5L42.5 17.0L44.9 17.3L47.3 19.0L49.6 16.7L52.0 17.0L54.4 13.4L56.7 16.9L59.1 13.8L61.5 11.9L63.8 14.7L66.2 17.5L68.5 16.5L70.9 16.8L73.3 17.1L75.6 13.5L78.0 7.5L80.4 8.6L82.7 6.0L85.1 3.0L87.5 2.0L89.8 3.0L92.2 5.2L94.5 4.4L96.9 7.4L99.3 7.0L101.6 8.8L104.0 11.0"/><path class="sr t-ok" d="M59.1 13.8L61.5 11.9L63.8 14.7L66.2 17.5L68.5 16.5L70.9 16.8L73.3 17.1L75.6 13.5L78.0 7.5L80.4 8.6L82.7 6.0L85.1 3.0L87.5 2.0L89.8 3.0L92.2 5.2L94.5 4.4L96.9 7.4L99.3 7.0L101.6 8.8L104.0 11.0"/><circle class="sh t-ok" cx="104.0" cy="11.0" r="2.2"/></svg><span class="rg"></span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:32.92%"></i><i class="bg-press" style="width:26.25%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(18.24% - 1px)"></b></span><span class="thx note-only">🟢 &lt;15 ／ 🟡 15–20 ／ 🟠 20–24 ／ 🔴 &gt;24</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-09 <span class="stale" title="每日，超過 7 天未更新">+11D</span></td>
+        <td class="src">每日 · ^VXTLT（Cboe TLT 波動率）</td>
+        <td class="note note-only">MOVE 停更時的替代讀數。量的是 TLT（20 年期公債 ETF）的隱含波動，單位是百分比，跟 MOVE 的基點波動不同尺標，兩個數字不能直接比大小——看的是「同時間它在自己的區間裡站多高」。</td>
+      </tr>
+      <tr id="g-vix">
+        <td class="k" title="16 以下是順風區；破 30 才進入去槓桿階。">VIX</td>
+        <td class="v t-ok">18.44<span class="chg">-1.55</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 14.21 至 31.05"><path class="sl" d="M0.0 15.3L0.6 11.9L1.2 13.4L1.7 16.6L2.3 16.2L2.9 16.3L3.5 12.9L4.1 13.2L4.6 13.5L5.2 14.2L5.8 13.6L6.4 14.8L7.0 12.7L7.6 14.3L8.1 16.0L8.7 15.3L9.3 14.0L9.9 12.3L10.5 10.0L11.0 12.6L11.6 9.8L12.2 3.7L12.8 7.9L13.4 8.5L13.9 9.3L14.5 6.0L15.1 6.1L15.7 10.1L16.3 11.3L16.8 8.4L17.4 9.5L18.0 6.6L18.6 7.2L19.2 6.4L19.8 8.1L20.3 5.9L20.9 2.0L21.5 2.5L22.1 8.2L22.7 9.0L23.2 9.7L23.8 9.4L24.4 7.6L25.0 12.7L25.6 14.4L26.1 14.6L26.7 14.8L27.3 15.6L27.9 15.8L28.5 16.0L29.1 16.5L29.6 15.0L30.2 14.3L30.8 15.0L31.4 14.5L32.0 15.2L32.5 15.9L33.1 16.1L33.7 15.1L34.3 17.1L34.9 17.0L35.4 15.6L36.0 16.6L36.6 16.6L37.2 16.9L37.8 16.8L38.3 15.5L38.9 16.0L39.5 16.1L40.1 16.7L40.7 15.5L41.3 16.1L41.8 15.9L42.4 16.5L43.0 17.3L43.6 17.3L44.2 17.5L44.7 17.0L45.3 17.8L45.9 18.4L46.5 18.8L47.1 18.0L47.6 18.3L48.2 18.0L48.8 18.7L49.4 12.2L50.0 15.0L50.5 14.0L51.1 11.4L51.7 14.4L52.3 16.3L52.9 17.9L53.5 17.6L54.0 15.5L54.6 17.7L55.2 16.7L55.8 14.4L56.4 15.3L56.9 15.0L57.5 15.5L58.1 16.3L58.7 17.6L59.3 17.5L59.8 17.9L60.4 18.5L61.0 17.9L61.6 17.1L62.2 18.3L62.7 19.1L63.3 16.8L63.9 17.6L64.5 18.4L65.1 17.3L65.7 15.1L66.2 15.3L66.8 17.0L67.4 17.4L68.0 15.2L68.6 15.3L69.1 15.2L69.7 15.7L70.3 13.1L70.9 16.9L71.5 18.1L72.0 18.2L72.6 17.6L73.2 18.3L73.8 19.0L74.4 19.3L74.9 18.7L75.5 18.9L76.1 19.6L76.7 19.6L77.3 20.0L77.9 19.0L78.4 18.3L79.0 19.3L79.6 18.1L80.2 19.0L80.8 18.2L81.3 18.7L81.9 18.9L82.5 19.7L83.1 19.8L83.7 19.2L84.2 17.7L84.8 18.9L85.4 19.9L86.0 19.7L86.6 18.8L87.2 18.4L87.7 17.6L88.3 16.1L88.9 18.3L89.5 16.9L90.1 16.8L90.6 16.3L91.2 18.7L91.8 19.4L92.4 19.3L93.0 20.0L93.5 19.0L94.1 18.4L94.7 19.3L95.3 18.0L95.9 18.0L96.4 17.7L97.0 17.7L97.6 18.8L98.2 18.6L98.8 19.1L99.4 19.1L99.9 18.7L100.5 19.3L101.1 18.9L101.7 18.9L102.3 17.2L102.8 17.6L103.4 13.8L104.0 15.5"/><path class="sr t-ok" d="M93.0 20.0L93.5 19.0L94.1 18.4L94.7 19.3L95.3 18.0L95.9 18.0L96.4 17.7L97.0 17.7L97.6 18.8L98.2 18.6L98.8 19.1L99.4 19.1L99.9 18.7L100.5 19.3L101.1 18.9L101.7 18.9L102.3 17.2L102.8 17.6L103.4 13.8L104.0 15.5"/><circle class="sh t-ok" cx="104.0" cy="15.5" r="2.2"/></svg><span class="rg">近 2.2 年區間第 65 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:29.58%"></i><i class="bg-press" style="width:29.58%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(11.41% - 1px)"></b></span><span class="thx note-only">🟢 &lt;20 ／ 🟡 20–25 ／ 🟠 &gt;25 持續 ／ 🔴 &gt;30</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>正常</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · ^VIX ／ VIXCLS</td>
+        <td class="note note-only">16 以下是順風區；破 30 才進入去槓桿階。</td>
+      </tr>
+      <tr id="g-vvix">
+        <td class="k" title="尾部風險定價（對恐慌的恐慌）。VIX 低但 VVIX 高＝市場在偷買保險。">VVIX</td>
+        <td class="v t-watch">106.9<span class="chg">-3.0</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 82.59 至 140.4"><path class="sl" d="M0.0 15.0L0.6 13.4L1.2 12.7L1.7 9.3L2.3 14.3L2.9 15.0L3.5 14.3L4.1 13.9L4.6 10.8L5.2 9.8L5.8 12.4L6.4 11.9L7.0 11.0L7.6 11.9L8.1 9.7L8.7 11.9L9.3 13.3L9.9 13.3L10.5 11.2L11.0 10.4L11.6 9.6L12.2 12.4L12.8 9.6L13.4 2.0L13.9 7.6L14.5 6.7L15.1 7.6L15.7 5.2L16.3 4.9L16.8 9.4L17.4 11.3L18.0 6.3L18.6 9.0L19.2 6.4L19.8 7.5L20.3 7.1L20.9 8.6L21.5 7.0L22.1 4.3L22.7 5.9L23.2 9.6L23.8 10.0L24.4 9.8L25.0 10.4L25.6 9.2L26.1 11.1L26.7 12.9L27.3 12.3L27.9 13.8L28.5 16.0L29.1 15.3L29.6 15.6L30.2 16.1L30.8 15.2L31.4 14.0L32.0 15.0L32.5 15.0L33.1 15.5L33.7 16.5L34.3 17.4L34.9 15.8L35.4 16.5L36.0 16.1L36.6 15.1L37.2 16.1L37.8 16.5L38.3 16.6L38.9 15.6L39.5 15.2L40.1 15.0L40.7 15.1L41.3 16.4L41.8 16.8L42.4 17.3L43.0 16.3L43.6 15.7L44.2 17.1L44.7 17.3L45.3 17.8L45.9 18.5L46.5 18.9L47.1 18.9L47.6 17.2L48.2 17.5L48.8 17.8L49.4 19.0L50.0 13.9L50.5 16.9L51.1 15.9L51.7 12.0L52.3 14.4L52.9 16.5L53.5 18.4L54.0 18.4L54.6 16.3L55.2 18.2L55.8 17.2L56.4 14.7L56.9 16.0L57.5 17.3L58.1 18.0L58.7 18.1L59.3 18.7L59.8 18.0L60.4 18.1L61.0 18.6L61.6 18.3L62.2 17.3L62.7 18.1L63.3 18.5L63.9 16.1L64.5 16.6L65.1 17.1L65.7 15.4L66.2 13.1L66.8 13.7L67.4 15.7L68.0 16.0L68.6 13.9L69.1 14.4L69.7 14.3L70.3 15.0L70.9 11.6L71.5 16.2L72.0 17.2L72.6 17.4L73.2 16.9L73.8 17.6L74.4 18.1L74.9 17.6L75.5 16.9L76.1 17.4L76.7 18.2L77.3 17.9L77.9 18.5L78.4 16.5L79.0 16.8L79.6 18.8L80.2 17.7L80.8 18.9L81.3 18.1L81.9 19.0L82.5 19.2L83.1 19.9L83.7 18.7L84.2 18.8L84.8 17.3L85.4 18.9L86.0 19.6L86.6 19.4L87.2 18.1L87.7 16.3L88.3 13.8L88.9 17.3L89.5 16.2L90.1 16.2L90.6 16.0L91.2 18.4L91.8 18.5L92.4 19.0L93.0 19.8L93.5 18.1L94.1 17.5L94.7 18.4L95.3 17.4L95.9 17.8L96.4 17.9L97.0 17.1L97.6 18.6L98.2 19.1L98.8 20.0L99.4 19.8L99.9 18.4L100.5 19.3L101.1 19.0L101.7 19.1L102.3 16.3L102.8 16.9L103.4 11.5L104.0 12.4"/><path class="sr t-watch" d="M93.0 19.8L93.5 18.1L94.1 17.5L94.7 18.4L95.3 17.4L95.9 17.8L96.4 17.9L97.0 17.1L97.6 18.6L98.2 19.1L98.8 20.0L99.4 19.8L99.9 18.4L100.5 19.3L101.1 19.0L101.7 19.1L102.3 16.3L102.8 16.9L103.4 11.5L104.0 12.4"/><circle class="sh t-watch" cx="104.0" cy="12.4" r="2.2"/></svg><span class="rg">近 2.2 年區間第 76 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:19.58%"></i><i class="bg-press" style="width:39.58%"></i><i class="bg-alarm" style="width:20.42%"></i><b style="left:calc(34.18% - 1px)"></b></span><span class="thx note-only">🟢 &lt;100 ／ 🟡 100–110 ／ 🟠 110–130 ／ 🔴 &gt;130</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>留意</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · ^VVIX</td>
+        <td class="note note-only">尾部風險定價（對恐慌的恐慌）。VIX 低但 VVIX 高＝市場在偷買保險。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 4 — 利率／匯率 · 市場流動性</td></tr>
+      <tr id="g-y30">
+        <td class="k" title="單日 +10bps ＝ 即時 risk-off（見盤中引信）。水位重要，但黏著度更重要。">30Y 殖利率</td>
+        <td class="v t-alarm">5.472%<span class="chg">+4bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 4.633 至 5.665"><path class="sl" d="M0.0 15.2L0.6 15.2L1.2 15.1L1.7 16.0L2.3 16.1L2.9 16.3L3.5 17.3L4.1 16.8L4.6 18.3L5.2 18.9L5.8 19.1L6.4 18.7L7.0 18.8L7.6 18.4L8.1 18.9L8.7 19.0L9.3 18.9L9.9 19.4L10.5 20.0L11.0 18.9L11.6 18.8L12.2 18.6L12.8 17.9L13.4 17.9L13.9 18.1L14.5 17.6L15.1 16.1L15.7 15.6L16.3 15.2L16.8 16.1L17.4 16.2L18.0 15.7L18.6 16.2L19.2 14.3L19.8 15.1L20.3 14.6L20.9 15.4L21.5 14.7L22.1 13.9L22.7 15.3L23.2 15.5L23.8 15.3L24.4 15.5L25.0 15.5L25.6 15.0L26.1 15.6L26.7 15.4L27.3 15.1L27.9 15.3L28.5 15.9L29.1 15.5L29.6 14.8L30.2 15.6L30.8 15.7L31.4 15.4L32.0 15.3L32.5 15.0L33.1 15.1L33.7 14.6L34.3 14.6L34.9 13.8L35.4 13.8L36.0 14.2L36.6 13.2L37.2 13.9L37.8 14.6L38.3 14.1L38.9 14.5L39.5 13.8L40.1 13.1L40.7 12.8L41.3 13.4L41.8 11.4L42.4 11.0L43.0 10.4L43.6 11.6L44.2 11.6L44.7 12.5L45.3 13.1L45.9 13.4L46.5 13.9L47.1 13.7L47.6 13.8L48.2 14.2L48.8 13.8L49.4 14.0L50.0 13.6L50.5 13.2L51.1 13.4L51.7 13.2L52.3 14.5L52.9 14.0L53.5 14.1L54.0 14.9L54.6 14.9L55.2 15.3L55.8 14.5L56.4 14.6L56.9 16.1L57.5 16.1L58.1 16.0L58.7 16.0L59.3 15.3L59.8 14.2L60.4 13.9L61.0 13.7L61.6 12.8L62.2 12.5L62.7 12.7L63.3 12.4L63.9 11.9L64.5 12.0L65.1 12.2L65.7 11.9L66.2 12.5L66.8 11.5L67.4 11.3L68.0 11.0L68.6 10.6L69.1 10.8L69.7 11.4L70.3 11.9L70.9 11.1L71.5 10.0L72.0 8.8L72.6 9.6L73.2 10.3L73.8 10.6L74.4 9.9L74.9 9.9L75.5 9.4L76.1 9.5L76.7 9.3L77.3 9.9L77.9 9.0L78.4 8.2L79.0 8.6L79.6 10.2L80.2 9.5L80.8 8.8L81.3 9.6L81.9 10.6L82.5 10.4L83.1 10.3L83.7 10.0L84.2 9.3L84.8 8.9L85.4 8.9L86.0 9.4L86.6 9.3L87.2 9.0L87.7 8.6L88.3 7.3L88.9 7.4L89.5 7.9L90.1 7.3L90.6 7.5L91.2 8.4L91.8 7.8L92.4 8.4L93.0 8.3L93.5 6.6L94.1 5.6L94.7 4.8L95.3 3.8L95.9 3.2L96.4 2.5L97.0 3.1L97.6 2.6L98.2 2.0L98.8 2.4L99.4 2.1L99.9 3.0L100.5 3.1L101.1 3.2L101.7 3.8L102.3 4.4L102.8 6.1L103.4 6.0L104.0 5.4"/><path class="sr t-alarm" d="M93.0 8.3L93.5 6.6L94.1 5.6L94.7 4.8L95.3 3.8L95.9 3.2L96.4 2.5L97.0 3.1L97.6 2.6L98.2 2.0L98.8 2.4L99.4 2.1L99.9 3.0L100.5 3.1L101.1 3.2L101.7 3.8L102.3 4.4L102.8 6.1L103.4 6.0L104.0 5.4"/><circle class="sh t-alarm" cx="104.0" cy="5.4" r="2.2"/></svg><span class="rg">近 2.2 年區間第 97 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:17.92%"></i><i class="bg-watch" style="width:22.92%"></i><i class="bg-press" style="width:28.75%"></i><i class="bg-alarm" style="width:30.42%"></i><b style="left:calc(94.85% - 1px)"></b></span><span class="thx note-only">🟢 &lt;4.8 ／ 🟡 4.8–5.0 ／ 🟠 5.0–5.25 ／ 🔴 &gt;5.25</span></td>
+        <td class="st t-alarm"><span class="m m-alarm"></span>失控區</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · ^TYX ／ DGS30</td>
+        <td class="note note-only">單日 +10bps ＝ 即時 risk-off（見盤中引信）。水位重要，但黏著度更重要。</td>
+      </tr>
+      <tr id="g-y10">
+        <td class="k" title="房貸基準利率。與 30Y 的關係決定壓力是「升息預期」還是「期限溢價」。">10Y 殖利率</td>
+        <td class="v t-alarm">5.136%<span class="chg">+4bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 3.962 至 5.311"><path class="sl" d="M0.0 15.8L0.6 15.8L1.2 15.8L1.7 16.7L2.3 16.7L2.9 16.9L3.5 17.5L4.1 17.2L4.6 18.1L5.2 18.7L5.8 18.8L6.4 18.4L7.0 18.5L7.6 18.3L8.1 19.1L8.7 19.1L9.3 18.9L9.9 19.3L10.5 20.0L11.0 18.9L11.6 18.7L12.2 18.4L12.8 17.5L13.4 17.7L13.9 17.7L14.5 17.7L15.1 16.7L15.7 15.9L16.3 15.7L16.8 16.6L17.4 16.8L18.0 16.0L18.6 15.7L19.2 14.3L19.8 15.0L20.3 14.3L20.9 15.1L21.5 13.9L22.1 13.6L22.7 14.9L23.2 15.3L23.8 15.2L24.4 15.3L25.0 15.0L25.6 14.9L26.1 15.6L26.7 15.6L27.3 15.3L27.9 15.5L28.5 16.1L29.1 15.7L29.6 15.4L30.2 16.2L30.8 16.2L31.4 15.6L32.0 15.6L32.5 15.2L33.1 15.4L33.7 15.0L34.3 14.8L34.9 13.9L35.4 14.3L36.0 14.4L36.6 13.5L37.2 13.9L37.8 14.7L38.3 14.3L38.9 14.6L39.5 14.0L40.1 13.3L40.7 13.1L41.3 13.3L41.8 11.6L42.4 11.2L43.0 10.6L43.6 11.9L44.2 11.7L44.7 12.0L45.3 12.9L45.9 13.1L46.5 13.4L47.1 13.4L47.6 13.2L48.2 13.4L48.8 12.9L49.4 13.1L50.0 12.3L50.5 12.1L51.1 12.4L51.7 12.3L52.3 13.3L52.9 13.0L53.5 13.2L54.0 13.8L54.6 13.3L55.2 13.5L55.8 12.7L56.4 12.9L56.9 14.1L57.5 14.3L58.1 14.5L58.7 14.5L59.3 13.9L59.8 13.2L60.4 13.0L61.0 13.1L61.6 12.4L62.2 11.9L62.7 12.3L63.3 11.9L63.9 11.4L64.5 11.7L65.1 12.2L65.7 11.9L66.2 12.3L66.8 11.5L67.4 11.1L68.0 10.7L68.6 10.1L69.1 10.4L69.7 10.9L70.3 11.4L70.9 11.2L71.5 10.6L72.0 9.6L72.6 10.3L73.2 11.1L73.8 11.3L74.4 10.6L74.9 10.7L75.5 10.2L76.1 10.4L76.7 10.4L77.3 10.9L77.9 10.2L78.4 9.8L79.0 10.1L79.6 10.8L80.2 10.2L80.8 9.6L81.3 10.1L81.9 11.0L82.5 10.6L83.1 10.5L83.7 9.9L84.2 9.4L84.8 8.9L85.4 8.9L86.0 9.3L86.6 9.0L87.2 8.7L87.7 8.3L88.3 6.9L88.9 6.5L89.5 6.7L90.1 6.2L90.6 6.1L91.2 6.9L91.8 6.2L92.4 6.6L93.0 6.6L93.5 4.6L94.1 4.0L94.7 3.7L95.3 2.9L95.9 2.7L96.4 2.2L97.0 3.0L97.6 2.5L98.2 2.0L98.8 2.6L99.4 2.5L99.9 3.1L100.5 2.9L101.1 2.9L101.7 3.3L102.3 3.6L102.8 5.0L103.4 4.8L104.0 4.3"/><path class="sr t-alarm" d="M93.0 6.6L93.5 4.6L94.1 4.0L94.7 3.7L95.3 2.9L95.9 2.7L96.4 2.2L97.0 3.0L97.6 2.5L98.2 2.0L98.8 2.6L99.4 2.5L99.9 3.1L100.5 2.9L101.1 2.9L101.7 3.3L102.3 3.6L102.8 5.0L103.4 4.8L104.0 4.3"/><circle class="sh t-alarm" cx="104.0" cy="4.3" r="2.2"/></svg><span class="rg">近 2.2 年區間第 97 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:34.58%"></i><i class="bg-press" style="width:23.33%"></i><i class="bg-alarm" style="width:21.67%"></i><b style="left:calc(94.19% - 1px)"></b></span><span class="thx note-only">🟢 &lt;4.5 ／ 🟡 4.5–4.8 ／ 🟠 4.8–5.0 ／ 🔴 &gt;5.0</span></td>
+        <td class="st t-alarm"><span class="m m-alarm"></span>失控區</td>
+        <td class="dt">2026-10-19</td>
+        <td class="src">每日 · ^TNX ／ DGS10</td>
+        <td class="note note-only">房貸基準利率。與 30Y 的關係決定壓力是「升息預期」還是「期限溢價」。</td>
+      </tr>
+      <tr id="g-y2">
+        <td class="k" title="2Y 跌而 30Y 噴 ＝ 期限溢價；兩者同漲 ＝ 升息預期。">2Y 殖利率</td>
+        <td class="v t-info">4.740%<span class="chg">-3bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 3.38 至 4.92"><path class="sl" d="M0.0 18.4L0.6 17.8L1.2 17.8L1.7 17.8L2.3 18.9L2.9 18.6L3.5 18.8L4.1 19.2L4.6 18.4L5.2 18.9L5.8 19.8L6.4 19.4L7.0 18.9L7.6 18.9L8.1 18.8L8.7 19.4L9.3 19.4L9.9 19.2L10.5 19.5L11.0 20.0L11.6 18.9L12.2 18.5L12.8 18.1L13.4 17.8L13.9 17.9L14.5 17.9L15.1 17.8L15.7 17.0L16.3 15.6L16.8 15.9L17.4 16.5L18.0 16.5L18.6 15.6L19.2 15.2L19.8 14.2L20.3 14.7L20.9 13.9L21.5 14.6L22.1 13.2L22.7 14.2L23.2 14.9L23.8 15.2L24.4 15.0L25.0 15.2L25.6 14.6L26.1 14.6L26.7 15.0L27.3 15.2L27.9 15.3L28.5 15.0L29.1 15.3L29.6 15.6L30.2 15.6L30.8 15.3L31.4 16.1L32.0 16.0L32.5 15.3L33.1 15.2L33.7 14.7L34.3 15.3L34.9 15.3L35.4 14.6L36.0 13.7L36.6 14.2L37.2 14.2L37.8 13.3L38.3 13.6L38.9 14.3L39.5 13.7L40.1 13.9L40.7 13.3L41.3 12.8L41.8 13.0L42.4 12.8L43.0 11.7L43.6 11.9L44.2 11.2L44.7 12.3L45.3 11.8L45.9 11.2L46.5 12.6L47.1 12.8L47.6 12.9L48.2 13.0L48.8 12.2L49.4 12.2L50.0 11.8L50.5 12.2L51.1 10.8L51.7 11.0L52.3 11.2L52.9 11.2L53.5 12.2L54.0 11.7L54.6 11.9L55.2 12.2L55.8 10.4L56.4 10.5L56.9 9.9L57.5 10.9L58.1 11.5L58.7 11.7L59.3 11.9L59.8 11.6L60.4 11.1L61.0 10.8L61.6 11.1L62.2 11.2L62.7 10.5L63.3 10.3L63.9 10.9L64.5 10.3L65.1 9.7L65.7 10.6L66.2 11.2L66.8 10.9L67.4 10.6L68.0 10.3L68.6 9.7L69.1 9.1L69.7 8.4L70.3 8.9L70.9 9.1L71.5 9.7L72.0 10.2L72.6 10.1L73.2 9.5L73.8 9.8L74.4 10.4L74.9 10.6L75.5 9.8L76.1 10.5L76.7 9.8L77.3 10.2L77.9 10.4L78.4 11.0L79.0 10.8L79.6 10.5L80.2 10.5L80.8 10.5L81.3 10.5L81.9 9.9L82.5 9.9L83.1 10.8L83.7 10.5L84.2 10.4L84.8 8.8L85.4 8.8L86.0 8.2L86.6 8.2L87.2 8.8L87.7 8.4L88.3 8.2L88.9 7.7L89.5 6.2L90.1 5.4L90.6 5.2L91.2 4.9L91.8 4.1L92.4 4.9L93.0 3.9L93.5 3.9L94.1 4.5L94.7 2.8L95.3 2.6L95.9 3.3L96.4 2.0L97.0 2.4L97.6 2.5L98.2 3.6L98.8 3.1L99.4 2.9L99.9 3.5L100.5 3.8L101.1 4.0L101.7 3.4L102.3 3.5L102.8 3.2L103.4 3.8L104.0 4.1"/><path class="sr t-info" d="M93.0 3.9L93.5 3.9L94.1 4.5L94.7 2.8L95.3 2.6L95.9 3.3L96.4 2.0L97.0 2.4L97.6 2.5L98.2 3.6L98.8 3.1L99.4 2.9L99.9 3.5L100.5 3.8L101.1 4.0L101.7 3.4L102.3 3.5L102.8 3.2L103.4 3.8L104.0 4.1"/><circle class="sh t-info" cx="104.0" cy="4.1" r="2.2"/></svg><span class="rg">近 2.4 年區間第 94 百分位</span></td>
+        <td class="bd"><span class="thx note-only">觀察與長端的方向差</span></td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · ^FVX ／ DGS2</td>
+        <td class="note note-only">2Y 跌而 30Y 噴 ＝ 期限溢價；兩者同漲 ＝ 升息預期。</td>
+      </tr>
+      <tr id="g-slope_2s30s" class="ext">
+        <td class="k" title="只看 10Y 水位會錯過重點——是曲線形狀在告訴你壓力來自哪裡。">2s30s 斜率</td>
+        <td class="v t-watch">70 bps<span class="chg">+4bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 53.6 至 139.2"><path class="sl" d="M0.0 3.4L0.6 2.8L1.2 3.1L1.7 3.2L2.3 3.0L2.9 2.0L3.5 2.8L4.1 2.5L4.6 3.1L5.2 4.1L5.8 4.8L6.4 4.0L7.0 4.9L7.6 5.3L8.1 5.3L8.7 5.1L9.3 4.6L9.9 4.8L10.5 5.1L11.0 5.0L11.6 4.9L12.2 5.4L12.8 6.2L13.4 6.5L13.9 6.4L14.5 6.1L15.1 6.5L15.7 6.0L16.3 5.7L16.8 7.6L17.4 6.5L18.0 6.5L18.6 6.6L19.2 7.7L19.8 8.9L20.3 8.6L20.9 8.5L21.5 9.4L22.1 9.0L22.7 10.7L23.2 8.1L23.8 8.5L24.4 8.1L25.0 8.4L25.6 8.1L26.1 9.2L26.7 7.9L27.3 8.2L27.9 7.8L28.5 8.1L29.1 7.7L29.6 8.0L30.2 7.5L30.8 7.1L31.4 6.6L32.0 6.9L32.5 7.8L33.1 7.9L33.7 8.4L34.3 7.4L34.9 6.8L35.4 8.1L36.0 8.8L36.6 8.0L37.2 8.4L37.8 8.7L38.3 9.1L38.9 8.7L39.5 9.2L40.1 9.3L40.7 9.5L41.3 9.6L41.8 8.8L42.4 10.0L43.0 9.4L43.6 8.6L44.2 9.2L44.7 8.6L45.3 9.6L45.9 11.6L46.5 9.9L47.1 10.0L47.6 10.3L48.2 10.0L48.8 11.5L49.4 12.0L50.0 12.1L50.5 11.8L51.1 13.8L51.7 12.9L52.3 12.7L52.9 12.5L53.5 12.3L54.0 12.7L54.6 12.3L55.2 12.8L55.8 16.0L56.4 16.3L56.9 16.4L57.5 14.9L58.1 15.6L58.7 15.1L59.3 14.6L59.8 15.3L60.4 15.2L61.0 14.5L61.6 13.5L62.2 13.1L62.7 13.3L63.3 13.3L63.9 12.5L64.5 13.2L65.1 13.6L65.7 12.1L66.2 11.2L66.8 11.5L67.4 12.7L68.0 12.2L68.6 13.0L69.1 13.7L69.7 14.4L70.3 13.8L70.9 14.1L71.5 13.7L72.0 11.9L72.6 10.7L73.2 10.3L73.8 10.6L74.4 10.5L74.9 10.4L75.5 11.0L76.1 9.8L76.7 10.4L77.3 9.9L77.9 9.3L78.4 8.9L79.0 8.2L79.6 7.7L80.2 8.2L80.8 10.2L81.3 9.3L81.9 9.5L82.5 10.4L83.1 10.2L83.7 10.3L84.2 10.4L84.8 13.1L85.4 12.2L86.0 12.8L86.6 12.8L87.2 12.3L87.7 12.9L88.3 12.9L88.9 13.3L89.5 14.4L90.1 16.0L90.6 17.0L91.2 16.7L91.8 18.5L92.4 18.1L93.0 19.3L93.5 20.0L94.1 18.8L94.7 19.7L95.3 18.8L95.9 16.7L96.4 17.8L97.0 16.5L97.6 15.3L98.2 14.0L98.8 14.4L99.4 13.9L99.9 13.4L100.5 12.5L101.1 13.3L101.7 14.4L102.3 15.0L102.8 16.4L103.4 17.4L104.0 16.6"/><path class="sr t-watch" d="M93.0 19.3L93.5 20.0L94.1 18.8L94.7 19.7L95.3 18.8L95.9 16.7L96.4 17.8L97.0 16.5L97.6 15.3L98.2 14.0L98.8 14.4L99.4 13.9L99.9 13.4L100.5 12.5L101.1 13.3L101.7 14.4L102.3 15.0L102.8 16.4L103.4 17.4L104.0 16.6"/><circle class="sh t-watch" cx="104.0" cy="16.6" r="2.2"/></svg><span class="rg">近 2.2 年區間第 32 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:59.17%"></i><i class="bg-press" style="width:20.42%"></i><b style="left:calc(39.41% - 1px)"></b></span><span class="thx note-only">短端跌＋長端噴＝熊市陡化</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>陡化中</td>
+        <td class="dt">2026-10-16</td>
+        <td class="src">每日 · DGS30 − DGS2</td>
+        <td class="note note-only">只看 10Y 水位會錯過重點——是曲線形狀在告訴你壓力來自哪裡。</td>
+      </tr>
+      <tr id="g-term_premium" class="ext">
+        <td class="k" title="NY Fed ACM 只有 xls，這裡改用 FRED 的 Kim-Wright 模型（THREEFYTP10），口徑不同但方向一致。慢變數，不會像 VIX 隔天回落。">10Y 期限溢價</td>
+        <td class="v t-press">1.07%<span class="chg">+0bps</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 0.4627 至 1.097"><path class="sl" d="M0.0 15.7L0.6 15.7L1.2 15.4L1.7 15.7L2.3 15.7L2.9 15.3L3.5 15.2L4.1 15.1L4.6 16.0L5.2 16.1L5.8 16.2L6.4 16.9L7.0 16.6L7.6 17.5L8.1 18.4L8.7 18.5L9.3 18.3L9.9 18.3L10.5 18.3L11.0 19.0L11.6 19.0L12.2 18.9L12.8 19.3L13.4 20.0L13.9 19.2L14.5 18.9L15.1 18.5L15.7 17.9L16.3 17.6L16.8 17.7L17.4 17.5L18.0 16.7L18.6 15.6L19.2 15.3L19.8 16.0L20.3 16.4L20.9 15.7L21.5 15.5L22.1 13.9L22.7 14.1L23.2 13.5L23.8 14.1L24.4 12.9L25.0 12.7L25.6 13.8L26.1 14.6L26.7 14.3L27.3 14.5L27.9 14.1L28.5 14.1L29.1 14.4L29.6 14.8L30.2 14.9L30.8 14.6L31.4 14.9L32.0 15.5L32.5 15.4L33.1 15.0L33.7 15.7L34.3 15.8L34.9 15.2L35.4 15.0L36.0 14.4L36.6 14.7L37.2 14.4L37.8 14.0L38.3 13.0L38.9 13.2L39.5 13.2L40.1 12.4L40.7 12.5L41.3 13.4L41.8 13.0L42.4 13.3L43.0 12.8L43.6 12.0L44.2 11.9L44.7 11.7L45.3 10.1L45.9 9.6L46.5 8.7L47.1 9.6L47.6 9.6L48.2 9.6L48.8 10.6L49.4 11.0L50.0 11.4L50.5 11.7L51.1 11.5L51.7 11.6L52.3 11.2L52.9 11.4L53.5 10.4L54.0 10.2L54.6 10.5L55.2 10.4L55.8 11.5L56.4 11.4L56.9 11.6L57.5 12.1L58.1 11.4L58.7 11.8L59.3 11.4L59.8 11.6L60.4 12.8L61.0 13.3L61.6 13.7L62.2 13.9L62.7 13.4L63.3 12.6L63.9 12.3L64.5 12.5L65.1 11.8L65.7 11.2L66.2 11.4L66.8 11.0L67.4 10.4L68.0 10.7L68.6 11.2L69.1 11.0L69.7 11.0L70.3 10.6L70.9 10.1L71.5 9.5L72.0 9.0L72.6 9.3L73.2 9.8L73.8 10.4L74.4 9.9L74.9 9.5L75.5 8.5L76.1 8.9L76.7 9.8L77.3 10.1L77.9 9.4L78.4 9.7L79.0 9.0L79.6 9.1L80.2 9.2L80.8 9.8L81.3 9.3L81.9 8.9L82.5 8.9L83.1 9.3L83.7 9.1L84.2 8.5L84.8 8.6L85.4 9.4L86.0 9.3L86.6 9.1L87.2 8.3L87.7 8.1L88.3 7.6L88.9 7.6L89.5 8.1L90.1 7.9L90.6 7.8L91.2 7.6L91.8 6.2L92.4 5.8L93.0 5.9L93.5 5.8L94.1 5.5L94.7 6.5L95.3 5.9L95.9 6.4L96.4 6.6L97.0 4.9L97.6 4.0L98.2 4.1L98.8 3.4L99.4 3.1L99.9 2.5L100.5 2.9L101.1 2.3L101.7 2.0L102.3 2.3L102.8 2.3L103.4 2.8L104.0 2.7"/><path class="sr t-press" d="M93.0 5.9L93.5 5.8L94.1 5.5L94.7 6.5L95.3 5.9L95.9 6.4L96.4 6.6L97.0 4.9L97.6 4.0L98.2 4.1L98.8 3.4L99.4 3.1L99.9 2.5L100.5 2.9L101.1 2.3L101.7 2.0L102.3 2.3L102.8 2.3L103.4 2.8L104.0 2.7"/><circle class="sh t-press" cx="104.0" cy="2.7" r="2.2"/></svg><span class="rg">近 2.4 年區間第 99 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:59.17%"></i><i class="bg-press" style="width:20.42%"></i><b style="left:calc(87.99% - 1px)"></b></span><span class="thx note-only">趨勢與黏著度，非單日</span></td>
+        <td class="st t-press"><span class="m m-press"></span>明確壓力</td>
+        <td class="dt">2026-10-09</td>
+        <td class="src">每日 · THREEFYTP10（Kim-Wright）</td>
+        <td class="note note-only">NY Fed ACM 只有 xls，這裡改用 FRED 的 Kim-Wright 模型（THREEFYTP10），口徑不同但方向一致。慢變數，不會像 VIX 隔天回落。</td>
+      </tr>
+      <tr id="g-usdjpy">
+        <td class="k" title="水位高本身不是警報，但代表引信更長更滿。危險在速度的兩個極端。">USD/JPY ⭐</td>
+        <td class="v t-info">158.58<span class="chg">+0.77</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 153.4 至 163.9"><path class="sl" d="M0.0 13.9L0.6 12.9L1.2 11.4L1.7 12.4L2.3 11.9L2.9 10.3L3.5 10.0L4.1 9.4L4.6 10.2L5.2 10.6L5.8 9.0L6.4 12.2L7.0 10.0L7.6 11.3L8.1 10.9L8.7 9.7L9.3 9.2L9.9 8.3L10.5 8.9L11.0 11.1L11.6 10.9L12.2 9.5L12.8 9.0L13.4 9.2L13.9 10.9L14.5 11.0L15.1 10.2L15.7 9.2L16.3 10.0L16.8 10.7L17.4 10.7L18.0 10.0L18.6 10.1L19.2 10.7L19.8 9.7L20.3 9.5L20.9 9.1L21.5 9.4L22.1 9.8L22.7 9.4L23.2 8.3L23.8 13.9L24.4 14.1L25.0 13.5L25.6 12.7L26.1 14.7L26.7 14.1L27.3 14.1L27.9 13.4L28.5 12.7L29.1 12.4L29.6 11.5L30.2 10.7L30.8 10.6L31.4 10.3L32.0 10.6L32.5 10.4L33.1 10.5L33.7 10.5L34.3 10.0L34.9 9.4L35.4 9.9L36.0 9.8L36.6 9.3L37.2 8.7L37.8 8.8L38.3 8.7L38.9 8.1L39.5 8.4L40.1 8.0L40.7 7.8L41.3 8.4L41.8 8.7L42.4 8.3L43.0 7.9L43.6 7.6L44.2 6.4L44.7 6.2L45.3 6.0L45.9 5.9L46.5 5.6L47.1 5.6L47.6 5.6L48.2 5.3L48.8 4.1L49.4 4.3L50.0 6.2L50.5 6.2L51.1 5.1L51.7 4.6L52.3 4.3L52.9 4.6L53.5 5.4L54.0 4.5L54.6 4.9L55.2 5.1L55.8 4.6L56.4 4.3L56.9 4.4L57.5 3.2L58.1 3.4L58.7 2.1L59.3 2.4L59.8 2.2L60.4 2.0L61.0 3.0L61.6 8.3L62.2 13.1L62.7 12.8L63.3 12.9L63.9 12.6L64.5 12.8L65.1 11.4L65.7 12.6L66.2 12.3L66.8 10.1L67.4 9.9L68.0 9.8L68.6 9.7L69.1 9.9L69.7 9.9L70.3 10.0L70.9 9.8L71.5 9.4L72.0 11.6L72.6 10.6L73.2 10.5L73.8 10.6L74.4 10.1L74.9 10.0L75.5 9.9L76.1 9.8L76.7 8.6L77.3 8.5L77.9 9.1L78.4 8.3L79.0 10.5L79.6 16.1L80.2 15.2L80.8 15.2L81.3 19.3L81.9 19.9L82.5 19.7L83.1 18.2L83.7 19.8L84.2 20.0L84.8 18.3L85.4 16.8L86.0 15.5L86.6 15.3L87.2 14.1L87.7 14.1L88.3 13.8L88.9 13.2L89.5 13.0L90.1 11.7L90.6 10.7L91.2 13.5L91.8 13.5L92.4 13.0L93.0 13.2L93.5 13.1L94.1 12.9L94.7 12.2L95.3 12.4L95.9 12.4L96.4 12.6L97.0 12.2L97.6 11.6L98.2 12.0L98.8 12.0L99.4 11.7L99.9 11.8L100.5 11.2L101.1 11.6L101.7 12.2L102.3 11.9L102.8 12.1L103.4 12.4L104.0 11.1"/><path class="sr t-info" d="M93.0 13.2L93.5 13.1L94.1 12.9L94.7 12.2L95.3 12.4L95.9 12.4L96.4 12.6L97.0 12.2L97.6 11.6L98.2 12.0L98.8 12.0L99.4 11.7L99.9 11.8L100.5 11.2L101.1 11.6L101.7 12.2L102.3 11.9L102.8 12.1L103.4 12.4L104.0 11.1"/><circle class="sh t-info" cx="104.0" cy="11.1" r="2.2"/></svg><span class="rg">近 2.2 年區間第 81 百分位</span></td>
+        <td class="bd"><span class="thx note-only">水位不設閾值；警報看速度（單日 −2% ＝ carry unwind）</span></td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-10-20</td>
+        <td class="src">每日 · USDJPY=X</td>
+        <td class="note note-only">水位高本身不是警報，但代表引信更長更滿。危險在速度的兩個極端。</td>
+      </tr>
+      <tr id="g-dxy" class="ext">
+        <td class="k" title="若變成殖利率升＋美元跌，即升級為主權信譽問題（見升級觸發器）。">DXY 美元指數</td>
+        <td class="v t-info">101.92<span class="chg">+0.08</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 96.88 至 102.6"><path class="sl" d="M0.0 19.8L0.6 20.0L1.2 19.1L1.7 17.4L2.3 16.7L2.9 17.1L3.5 17.4L4.1 16.8L4.6 17.4L5.2 17.1L5.8 17.7L6.4 15.3L7.0 13.1L7.6 14.0L8.1 12.3L8.7 13.3L9.3 12.7L9.9 13.8L10.5 12.6L11.0 11.0L11.6 9.0L12.2 11.1L12.8 11.5L13.4 9.9L13.9 12.6L14.5 11.3L15.1 13.5L15.7 11.9L16.3 11.4L16.8 10.5L17.4 9.7L18.0 8.5L18.6 10.3L19.2 11.3L19.8 10.1L20.3 10.2L20.9 11.3L21.5 12.9L22.1 13.9L22.7 14.4L23.2 15.3L23.8 16.1L24.4 16.3L25.0 15.8L25.6 16.1L26.1 16.3L26.7 15.2L27.3 14.6L27.9 13.9L28.5 14.9L29.1 14.9L29.6 14.5L30.2 13.6L30.8 16.2L31.4 15.8L32.0 15.0L32.5 14.9L33.1 16.4L33.7 15.7L34.3 17.0L34.9 16.7L35.4 15.5L36.0 14.9L36.6 13.7L37.2 12.5L37.8 13.4L38.3 12.4L38.9 13.0L39.5 12.7L40.1 12.3L40.7 12.8L41.3 12.6L41.8 13.2L42.4 13.6L43.0 12.7L43.6 12.6L44.2 11.6L44.7 12.0L45.3 9.9L45.9 10.0L46.5 10.4L47.1 10.3L47.6 10.6L48.2 10.9L48.8 11.3L49.4 11.6L50.0 9.9L50.5 7.5L51.1 6.9L51.7 5.7L52.3 5.1L52.9 5.6L53.5 5.9L54.0 6.6L54.6 6.4L55.2 5.8L55.8 7.4L56.4 7.5L56.9 6.5L57.5 6.8L58.1 7.2L58.7 7.1L59.3 6.1L59.8 7.2L60.4 8.6L61.0 7.8L61.6 7.8L62.2 7.0L62.7 6.4L63.3 6.5L63.9 5.6L64.5 5.5L65.1 5.4L65.7 5.8L66.2 7.6L66.8 10.1L67.4 10.8L68.0 10.3L68.6 10.5L69.1 11.1L69.7 10.2L70.3 11.4L70.9 11.3L71.5 10.7L72.0 10.7L72.6 10.1L73.2 10.3L73.8 11.2L74.4 11.2L74.9 11.3L75.5 11.3L76.1 13.8L76.7 13.6L77.3 13.9L77.9 13.8L78.4 13.3L79.0 13.6L79.6 12.8L80.2 12.8L80.8 11.1L81.3 11.9L81.9 11.2L82.5 11.5L83.1 13.3L83.7 12.8L84.2 12.9L84.8 12.7L85.4 13.8L86.0 14.0L86.6 13.0L87.2 12.9L87.7 12.8L88.3 11.9L88.9 11.3L89.5 9.2L90.1 9.5L90.6 9.5L91.2 9.3L91.8 8.8L92.4 8.3L93.0 6.7L93.5 6.1L94.1 7.1L94.7 6.4L95.3 5.8L95.9 5.6L96.4 3.5L97.0 4.1L97.6 3.3L98.2 4.4L98.8 3.1L99.4 3.4L99.9 3.2L100.5 2.0L101.1 3.3L101.7 2.1L102.3 3.8L102.8 4.3L103.4 4.3L104.0 4.1"/><path class="sr t-info" d="M93.0 6.7L93.5 6.1L94.1 7.1L94.7 6.4L95.3 5.8L95.9 5.6L96.4 3.5L97.0 4.1L97.6 3.3L98.2 4.4L98.8 3.1L99.4 3.4L99.9 3.2L100.5 2.0L101.1 3.3L101.7 2.1L102.3 3.8L102.8 4.3L103.4 4.3L104.0 4.1"/><circle class="sh t-info" cx="104.0" cy="4.1" r="2.2"/></svg><span class="rg">近 2.2 年區間第 73 百分位</span></td>
+        <td class="bd"><span class="thx note-only">與 30Y 同向＝正常；反向＝質變</span></td>
+        <td class="st t-info"><span class="m m-info"></span>僅記錄</td>
+        <td class="dt">2026-10-20</td>
+        <td class="src">每日 · DX-Y.NYB</td>
+        <td class="note note-only">若變成殖利率升＋美元跌，即升級為主權信譽問題（見升級觸發器）。</td>
+      </tr>
+      <tr id="g-wti" class="ext">
+        <td class="k" title="幾乎是所有地緣風險的總開關。">WTI 油價</td>
+        <td class="v t-watch">$98.47<span class="chg">+0.57</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 180 個觀測走勢，區間 62.33 至 112.9"><path class="sl" d="M0.0 19.8L0.6 19.8L1.2 20.0L1.7 19.0L2.3 18.5L2.9 18.6L3.5 18.6L4.1 18.8L4.6 18.9L5.2 19.0L5.8 18.3L6.4 16.8L7.0 15.7L7.6 15.6L8.1 13.4L8.7 9.8L9.3 8.5L9.9 12.5L10.5 11.1L11.0 8.1L11.6 7.1L12.2 8.9L12.8 8.0L13.4 7.9L13.9 8.0L14.5 7.2L15.1 10.8L15.7 9.3L16.3 10.0L16.8 8.6L17.4 6.7L18.0 5.6L18.6 6.1L19.2 6.6L19.8 2.5L20.3 2.2L20.9 2.0L21.5 8.6L22.1 7.4L22.7 7.8L23.2 6.9L23.8 9.7L24.4 9.7L25.0 8.5L25.6 12.3L26.1 10.3L26.7 9.4L27.3 9.1L27.9 8.1L28.5 8.6L29.1 7.9L29.6 6.6L30.2 4.2L30.8 4.8L31.4 5.9L32.0 4.3L32.5 5.8L33.1 8.4L33.7 8.5L34.3 8.2L34.9 7.3L35.4 5.8L36.0 6.2L36.6 6.2L37.2 4.7L37.8 3.5L38.3 3.8L38.9 7.2L39.5 7.9L40.1 7.8L40.7 8.8L41.3 10.6L41.8 10.6L42.4 11.1L43.0 9.4L43.6 8.8L44.2 8.0L44.7 9.1L45.3 10.0L45.9 9.7L46.5 10.8L47.1 10.2L47.6 11.0L48.2 12.0L48.8 13.5L49.4 15.1L50.0 14.9L50.5 14.9L51.1 15.6L51.7 16.1L52.3 17.2L52.9 16.6L53.5 17.5L54.0 17.0L54.6 17.5L55.2 17.8L55.8 17.7L56.4 17.8L56.9 17.1L57.5 16.0L58.1 16.5L58.7 16.8L59.3 14.4L59.8 14.0L60.4 13.9L61.0 14.1L61.6 12.8L62.2 12.6L62.7 12.0L63.3 11.3L63.9 9.4L64.5 10.4L65.1 12.8L65.7 14.0L66.2 12.1L66.8 12.4L67.4 12.1L68.0 13.6L68.6 15.2L69.1 15.4L69.7 14.7L70.3 14.4L70.9 14.1L71.5 13.0L72.0 12.6L72.6 12.6L73.2 13.3L73.8 12.9L74.4 12.9L74.9 12.1L75.5 12.0L76.1 11.6L76.7 10.9L77.3 11.2L77.9 11.2L78.4 11.9L79.0 12.9L79.6 12.9L80.2 12.5L80.8 12.5L81.3 11.7L81.9 10.1L82.5 9.8L83.1 9.7L83.7 9.6L84.2 9.6L84.8 9.3L85.4 9.1L86.0 8.0L86.6 5.7L87.2 6.6L87.7 5.7L88.3 6.1L88.9 4.5L89.5 5.7L90.1 5.9L90.6 6.5L91.2 8.0L91.8 8.1L92.4 8.5L93.0 9.4L93.5 8.5L94.1 9.3L94.7 9.2L95.3 10.4L95.9 10.0L96.4 9.1L97.0 9.8L97.6 10.4L98.2 10.4L98.8 10.8L99.4 9.6L99.9 9.5L100.5 8.8L101.1 8.7L101.7 8.4L102.3 7.3L102.8 6.1L103.4 7.4L104.0 7.1"/><path class="sr t-watch" d="M93.0 9.4L93.5 8.5L94.1 9.3L94.7 9.2L95.3 10.4L95.9 10.0L96.4 9.1L97.0 9.8L97.6 10.4L98.2 10.4L98.8 10.8L99.4 9.6L99.9 9.5L100.5 8.8L101.1 8.7L101.7 8.4L102.3 7.3L102.8 6.1L103.4 7.4L104.0 7.1"/><circle class="sh t-watch" cx="104.0" cy="7.1" r="2.2"/></svg><span class="rg">近 2.2 年區間第 95 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:20.42%"></i><i class="bg-watch" style="width:59.17%"></i><i class="bg-press" style="width:20.42%"></i><b style="left:calc(73.41% - 1px)"></b></span><span class="thx note-only">單日 ±5% 進盤中引信</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>反覆</td>
+        <td class="dt">2026-10-20</td>
+        <td class="src">每日 · CL=F ／ DCOILWTICO</td>
+        <td class="note note-only">幾乎是所有地緣風險的總開關。</td>
+      </tr>
+      <tr class="tier"><td colspan="8">TIER 5 — 勞動／景氣 · 緩慢但確認</td></tr>
+      <tr id="g-claims">
+        <td class="k" title="反方向意外（數據突然轉壞）常是最未被定價的風險。">初領失業金 4 週均</td>
+        <td class="v t-ok">198K<span class="chg">+0</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 125 個觀測走勢，區間 198.2 至 242.2"><path class="sl" d="M0.0 10.3L0.8 10.6L1.7 8.8L2.5 6.7L3.4 5.4L4.2 4.2L5.0 6.0L5.9 5.5L6.7 5.1L7.5 4.0L8.4 2.9L9.2 4.2L10.1 4.8L10.9 6.4L11.7 7.1L12.6 7.2L13.4 8.1L14.3 9.3L15.1 9.3L15.9 6.1L16.8 4.2L17.6 3.6L18.5 4.5L19.3 8.2L20.1 10.6L21.0 11.7L21.8 11.7L22.6 11.6L23.5 9.6L24.3 9.0L25.2 9.0L26.0 10.0L26.8 13.2L27.7 13.6L28.5 13.1L29.4 13.1L30.2 11.7L31.0 12.0L31.9 12.0L32.7 9.1L33.5 8.6L34.4 8.0L35.2 7.8L36.1 9.6L36.9 10.0L37.7 9.9L38.6 10.7L39.4 10.7L40.3 8.8L41.1 8.2L41.9 7.3L42.8 7.2L43.6 7.5L44.5 5.9L45.3 3.8L46.1 2.0L47.0 2.0L47.8 3.3L48.6 5.2L49.5 7.4L50.3 9.3L51.2 10.5L52.0 10.7L52.8 10.4L53.7 8.9L54.5 7.8L55.4 6.8L56.2 3.2L57.0 3.2L57.9 4.2L58.7 5.4L59.5 8.0L60.4 9.2L61.2 7.9L62.1 8.3L62.9 8.9L63.7 8.2L64.6 9.2L65.4 9.5L66.3 10.7L67.1 10.0L67.9 9.8L68.8 10.1L69.6 11.4L70.5 14.3L71.3 16.6L72.1 17.1L73.0 16.3L73.8 14.0L74.6 11.0L75.5 11.2L76.3 11.2L77.2 12.8L78.0 14.6L78.8 14.9L79.7 14.9L80.5 16.0L81.4 15.5L82.2 15.2L83.0 14.8L83.9 16.1L84.7 18.1L85.5 17.6L86.4 18.2L87.2 15.9L88.1 13.2L88.9 11.4L89.7 9.7L90.6 9.3L91.4 10.1L92.3 11.4L93.1 13.2L93.9 16.0L94.8 18.0L95.6 19.7L96.5 19.4L97.3 17.5L98.1 16.9L99.0 16.2L99.8 16.7L100.6 17.6L101.5 18.3L102.3 19.1L103.2 20.0L104.0 19.9"/><path class="sr t-ok" d="M88.1 13.2L88.9 11.4L89.7 9.7L90.6 9.3L91.4 10.1L92.3 11.4L93.1 13.2L93.9 16.0L94.8 18.0L95.6 19.7L96.5 19.4L97.3 17.5L98.1 16.9L99.0 16.2L99.8 16.7L100.6 17.6L101.5 18.3L102.3 19.1L103.2 20.0L104.0 19.9"/><circle class="sh t-ok" cx="104.0" cy="19.9" r="2.2"/></svg><span class="rg">近 2.4 年區間第 1 百分位</span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-ok" style="width:35.00%"></i><i class="bg-watch" style="width:19.17%"></i><i class="bg-press" style="width:29.17%"></i><i class="bg-alarm" style="width:16.67%"></i><b style="left:calc(4.81% - 1px)"></b></span><span class="thx note-only">🟢 &lt;230K ／ 🟡 230–250 ／ 🟠 &gt;250 連 3 週 ／ 🔴 &gt;280K</span></td>
+        <td class="st t-ok"><span class="m m-ok"></span>穩定</td>
+        <td class="dt">2026-10-10</td>
+        <td class="src">每週四 · IC4WSA</td>
+        <td class="note note-only">反方向意外（數據突然轉壞）常是最未被定價的風險。</td>
+      </tr>
+      <tr id="g-payrolls">
+        <td class="k" title="在「怕升息」的 regime 下，偏軟＝鴿派利多；崩至趨零則翻為衰退恐慌。">非農就業（月增）</td>
+        <td class="v t-watch">29K<span class="chg">-104</span></td>
+        <td class="sp"><svg class="sk" viewBox="0 0 104 22" preserveAspectRatio="none" role="img" aria-label="近 28 個觀測走勢，區間 -156 至 237"><line class="zl" x1="0" y1="12.9" x2="104" y2="12.9"/><path class="sl" d="M0.0 8.9L3.9 10.4L7.7 12.4L11.6 5.8L15.4 11.3L19.3 6.7L23.1 2.0L27.0 15.1L30.8 10.9L34.7 9.8L38.5 7.9L42.4 12.3L46.2 13.8L50.1 9.9L53.9 16.1L57.8 9.4L61.6 19.3L65.5 11.0L69.3 13.6L73.2 5.5L77.0 20.0L80.9 3.1L84.7 6.1L88.6 10.0L92.4 11.4L96.3 13.3L100.1 6.8L104.0 11.5"/><path class="sr t-watch" d="M30.8 10.9L34.7 9.8L38.5 7.9L42.4 12.3L46.2 13.8L50.1 9.9L53.9 16.1L57.8 9.4L61.6 19.3L65.5 11.0L69.3 13.6L73.2 5.5L77.0 20.0L80.9 3.1L84.7 6.1L88.6 10.0L92.4 11.4L96.3 13.3L100.1 6.8L104.0 11.5"/><circle class="sh t-watch" cx="104.0" cy="11.5" r="2.2"/></svg><span class="rg"></span></td>
+        <td class="bd"><span class="bandbar"><i class="bg-press" style="width:20.42%"></i><i class="bg-watch" style="width:59.17%"></i><i class="bg-ok" style="width:20.42%"></i><b style="left:calc(43.33% - 1px)"></b></span><span class="thx note-only">正成長放緩＝鴿派解壓 ／ 趨近 0 或負＝衰退恐慌</span></td>
+        <td class="st t-watch"><span class="m m-watch"></span>趨近停滯</td>
+        <td class="dt">2026-09-01</td>
+        <td class="src">每月 · PAYEMS 月差</td>
+        <td class="note note-only">在「怕升息」的 regime 下，偏軟＝鴿派利多；崩至趨零則翻為衰退恐慌。</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>邏輯傳導鏈</h3><span class="anno">TRANSMISSION · 壓力走到第幾步</span><span class="anno">SECTION C</span></div>
+  <p class="lede note-only">每條鏈是一條實際的傳導路徑。<strong>實線橘框＝該節點條件目前已成立；虛線＝尚未觸發。</strong>價值不在預測哪根引信會被點燃，而在看出壓力沿著哪條路走到了第幾步。點擊已觸發節點可跳至對應指標。</p>
+  <div class="chains">
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 A — 期限溢價衝擊</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">3 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">財政供給 ＋ 縮表 ＋ 無前瞻指引</span>
+          <span class="cond">結構性背景（人工維護）</span>
+        </div>
+        <div class="node live" data-jump="g-y30" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">02</span>
+          <span class="lbl">長端殖利率跳升</span>
+          <span class="cond">觸發條件：30Y &gt; 5.0% 或 2s30s &gt; 80bps</span>
+        </div>
+        <div class="node live" data-jump="g-y10" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">03</span>
+          <span class="lbl">高倍數股估值壓縮</span>
+          <span class="cond">觸發條件：Nasdaq 100 自 60 日高點回落 &gt; 5%</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_oas" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">企業再融資成本上升</span>
+          <span class="cond">觸發條件：HY OAS &gt; 350bps</span>
+        </div>
+        <div class="node cold" data-jump="g-move" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">槓桿長債部位追繳</span>
+          <span class="cond">觸發條件：MOVE &gt; 130 或 SRF &gt; $20B</span>
+        </div>
+        <div class="node cold" data-jump="g-sofr_iorb" tabindex="0" role="button">
+          <span class="step">06 質變</span>
+          <span class="lbl">資金水管斷裂</span>
+          <span class="cond">觸發條件：SOFR−IORB 由負轉正</span>
+        </div>
+      </div>
+      <p class="chain-note note-only">實例教材：2022 英國 gilt／LDI 事件——長債殖利率跳升 → 退休金槓桿長存續期部位被追繳 → 被迫拋售長債 → 殖利率再升 → 螺旋 → 央行緊急進場。這是節點 04→06 的完整示範。歷史類比則更像 1994 債券大屠殺、2013 taper tantrum、2023/10：痛，但未演成系統性危機。</p>
+    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-watch"></span>
+        <h4>鏈 B — 日圓 carry unwind</h4>
+        <span class="state t-watch">ACTIVE</span>
+        <span class="cnt">1 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live" data-jump="g-usdjpy" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">01 觸發器</span>
+          <span class="lbl">BOJ 升息或當局干預</span>
+          <span class="cond">已發生：2026-07-31 美日聯手干預——日本單日約 $53B（史上最大），NY Fed 代財政部賣歐元買日圓。盤中一小時 162.8 → 157</span>
+        </div>
+        <div class="node cold" data-jump="g-usdjpy" tabindex="0" role="button">
+          <span class="step">02</span>
+          <span class="lbl">日圓急升</span>
+          <span class="cond">觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作）</span>
+        </div>
+        <div class="node cold">
+          <span class="step">03</span>
+          <span class="lbl">匯損 ＋ 追繳保證金</span>
+          <span class="cond">觸發條件：USD/JPY 5 日 −4% 以上</span>
+        </div>
+        <div class="node cold">
+          <span class="step">04</span>
+          <span class="lbl">買回日圓螺旋（反身性）</span>
+          <span class="cond">觸發條件：5 日 −6% 且 VIX &gt; 25</span>
+        </div>
+        <div class="node cold" data-jump="g-vix" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">全球同步平倉</span>
+          <span class="cond">觸發條件：VIX &gt; 30 且日經自 60 日高點 −10%</span>
+        </div>
+        <div class="node cold">
+          <span class="step">06</span>
+          <span class="lbl">相關性 = 1</span>
+          <span class="cond">觸發條件：VIX &gt; 40（連黃金、公債都被拋售換現金）</span>
+        </div>
+      </div>
+      <p class="chain-note note-only">這條鏈不碰 Tier 1——2024/8 那次日經單日崩約 12%、VIX 盤中破 65，聯準會從未進場救 repo，數週內自行修復。它是 Tier 3／4 事件，但可在數小時內發動，且會優先打到半導體。注意：日圓「持續貶值」不是安全，而是同時把部位堆大、又把觸發器往前推。危險在速度的兩個極端，中間的緩貶／橫盤才是順風區。下面兩次是這條鏈實際走完的樣子——重點不在跌幅，在於「日圓出現在第幾幕」：1998 它是最後一幕（跌勢已走 11 週），2024 它是第一幕。等日圓告訴你要跑，在 1998 會晚兩個半月、而且賣在最低點。</p>
+      <div class="precedents">
+        <div class="anno">歷史上這條鏈走完的樣子 · 看順序，不看跌幅</div>
+      <div class="pcase">
+        <div class="phd">
+          <h5>1998 · 俄羅斯違約 ／ LTCM</h5>
+          <span class="pv t-press">咬到融資層 → 變成真危機</span>
+        </div>
+        <dl class="pmeta">
+          <dt>日圓在第幾幕</dt><dd class="t-press">第 12 週 — 最後一幕</dd>
+          <dt>形狀</dt><dd>雙底，中間有 +9% 假反彈</dd>
+          <dt>長度</dt><dd>12 週見底 · 4 個月收復</dd>
+          <dt>幅度</dt><dd>S&amp;P −19.3%（收盤基準，差 0.7% 未達熊市定義）</dd>
+        </dl>
+        <div class="psteps">
+          <div class="pstep k-peak">
+            <span class="pw">第 0 週</span>
+            <span class="pk">見頂</span>
+            <span class="pl">S&amp;P 見頂 1,186.75</span>
+            <span class="pd">1998-07-17</span>
+          </div>
+          <div class="pstep k-credit">
+            <span class="pw">第 4 週</span>
+            <span class="pk">信用</span>
+            <span class="pl">俄羅斯違約、盧布貶值 70%+，信用利差大幅擴張</span>
+            <span class="pd">1998-08-17</span>
+          </div>
+          <div class="pstep k-low">
+            <span class="pw">第 6 週</span>
+            <span class="pk">低點</span>
+            <span class="pl">單日 −6.8%，收盤低點 957.28（−19.3%）</span>
+            <span class="pd">1998-08-31</span>
+          </div>
+          <div class="pstep k-bounce">
+            <span class="pw">第 7–9 週</span>
+            <span class="pk">反彈</span>
+            <span class="pl">反彈約 +9%——很多人以為結束了</span>
+            <span class="pd">1998-09</span>
+          </div>
+          <div class="pstep k-policy">
+            <span class="pw">第 10 週</span>
+            <span class="pk">政策</span>
+            <span class="pl">LTCM 紓困（14 家銀行 $3.6B）· 9/29 Fed 首次降息</span>
+            <span class="pd">1998-09-23</span>
+          </div>
+          <div class="pstep k-yen">
+            <span class="pw">第 12 週</span>
+            <span class="pk">日圓</span>
+            <span class="pl">日圓單日 −7%，史上最大單日波動</span>
+            <span class="pd">1998-10-07</span>
+          </div>
+          <div class="pstep k-low">
+            <span class="pw">第 12 週</span>
+            <span class="pk">低點</span>
+            <span class="pl">盤中二次探底 923.32（−22%），最終底部</span>
+            <span class="pd">1998-10-08</span>
+          </div>
+          <div class="pstep k-policy">
+            <span class="pw">第 13 週</span>
+            <span class="pk">政策</span>
+            <span class="pl">Fed 會議間緊急降息 → 當天 +4.2%，V 轉</span>
+            <span class="pd">1998-10-15</span>
+          </div>
+          <div class="pstep k-recover">
+            <span class="pw">第 19 週</span>
+            <span class="pk">收復</span>
+            <span class="pl">創歷史新高</span>
+            <span class="pd">1998-11-23</span>
+          </div>
+        </div>
+        <p class="plesson">領先的是信用不是日圓：俄羅斯違約在第 4 週，日圓暴漲在第 12 週、離最終底部只剩 1 天。而且最痛的 8/31 是單一一天，真正折磨人的是九月那段假反彈。</p>
+      </div>
+      <div class="pcase">
+        <div class="phd">
+          <h5>2024/8 · BOJ 升息 ＋ 弱非農</h5>
+          <span class="pv t-watch">沒碰到融資層 → 自行修復</span>
+        </div>
+        <dl class="pmeta">
+          <dt>日圓在第幾幕</dt><dd class="t-press">第 3 週 — 第一幕（觸發者）</dd>
+          <dt>形狀</dt><dd>連三天崩跌後 V 轉</dd>
+          <dt>長度</dt><dd>3 週見底 · 約 6 週創新高</dd>
+          <dt>幅度</dt><dd>S&amp;P −8.5%（收盤基準）· 日經 −26%</dd>
+        </dl>
+        <div class="psteps">
+          <div class="pstep k-peak">
+            <span class="pw">第 0 週</span>
+            <span class="pk">見頂</span>
+            <span class="pl">日經見頂 42,224；S&amp;P 7/16 見頂 5,667</span>
+            <span class="pd">2024-07-11</span>
+          </div>
+          <div class="pstep k-yen">
+            <span class="pw">第 3 週</span>
+            <span class="pk">日圓</span>
+            <span class="pl">BOJ 升息 0.10% → 0.25%（前月已干預約 ¥5.5兆）</span>
+            <span class="pd">2024-07-31</span>
+          </div>
+          <div class="pstep k-policy">
+            <span class="pw">第 3 週</span>
+            <span class="pk">政策</span>
+            <span class="pl">非農 114K，遠低於預期 175K → 押 Fed 降息，利差雙向壓縮</span>
+            <span class="pd">2024-08-02</span>
+          </div>
+          <div class="pstep k-low">
+            <span class="pw">第 3 週</span>
+            <span class="pk">低點</span>
+            <span class="pl">日經 −12.4%（1987 以來最慘）· S&amp;P −3.0% · VIX 盤中 &gt;65 · 黃金同步下跌</span>
+            <span class="pd">2024-08-05</span>
+          </div>
+          <div class="pstep k-bounce">
+            <span class="pw">第 4 週</span>
+            <span class="pk">反彈</span>
+            <span class="pl">日經 +10.2%，隔天就反轉</span>
+            <span class="pd">2024-08-06</span>
+          </div>
+          <div class="pstep k-recover">
+            <span class="pw">第 7 週</span>
+            <span class="pk">收復</span>
+            <span class="pl">S&amp;P 收復全部跌幅；Fed 從未進場救 repo</span>
+            <span class="pd">2024-08-底</span>
+          </div>
+        </div>
+        <p class="plesson">日圓 7/29→8/5 升值 6.15%，是這次的起因而非結局。信用利差全程沒動，所以它關在匯率與股市裡，三週結束。</p>
+      </div>
+      </div>    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 C — AI 從股價事件變成信用事件</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">2 / 6 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">AI capex 以舉債支應</span>
+          <span class="cond">結構性背景（人工維護）</span>
+        </div>
+        <div class="node cold" data-jump="g-ig_oas" tabindex="0" role="button">
+          <span class="step">02</span>
+          <span class="lbl">科技／超大規模業者利差跑輸</span>
+          <span class="cond">觸發條件：IG OAS 20 日擴張 &gt; 10bps</span>
+        </div>
+        <div class="node live" data-jump="g-ccc_oas" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">03</span>
+          <span class="lbl">CCC／科技利差擴張</span>
+          <span class="cond">觸發條件：CCC OAS &gt; 900bps 或 20 日擴張 &gt; 50bps</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_oas" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">指數層級信用轉折</span>
+          <span class="cond">觸發條件：HY OAS &gt; 450bps</span>
+        </div>
+        <div class="node cold" data-jump="g-hy_ig" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">私募信用／BDC 壓力</span>
+          <span class="cond">觸發條件：HY − IG 差 &gt; 400bps</span>
+        </div>
+        <div class="node cold">
+          <span class="step">06</span>
+          <span class="lbl">廣泛信用緊縮</span>
+          <span class="cond">觸發條件：HY OAS &gt; 600bps</span>
+        </div>
+      </div>
+      <p class="chain-note note-only">目前最被低估的傳導路徑。市場把 AI 當純上漲題材，真正的風險在融資層——它不會只是某檔晶片股跌幾趴，而是變成 Tier 2 信用事件，那才會真正擴散。關鍵背離：亞洲半導體在打崩盤級的架，而 HY OAS 仍在低檔，就證明它仍關在產業籠子裡。</p>
+    </div>
+    <div class="chain">
+      <div class="chain-hd">
+        <span class="m m-press"></span>
+        <h4>鏈 D — 縮表 → 準備金 → 水管</h4>
+        <span class="state t-press">ACTIVE</span>
+        <span class="cnt">2 / 5 節點已觸發</span>
+      </div>
+      <div class="run">
+        <div class="node live">
+          <span class="flag">LIVE</span>
+          <span class="step">01 起因</span>
+          <span class="lbl">縮表持續 ／ 減持長天期公債</span>
+          <span class="cond">政策背景（人工維護）</span>
+        </div>
+        <div class="node live" data-jump="g-rrp" tabindex="0" role="button">
+          <span class="flag">LIVE</span>
+          <span class="step">02</span>
+          <span class="lbl">ON RRP 緩衝墊消失</span>
+          <span class="cond">觸發條件：ON RRP &lt; $50B</span>
+        </div>
+        <div class="node cold" data-jump="g-reserves" tabindex="0" role="button">
+          <span class="step">03</span>
+          <span class="lbl">準備金下降至稀缺</span>
+          <span class="cond">觸發條件：WRESBAL 20 期變動 &lt; −$200B</span>
+        </div>
+        <div class="node cold" data-jump="g-sofr_iorb" tabindex="0" role="button">
+          <span class="step">04</span>
+          <span class="lbl">SOFR−IORB 由負轉正</span>
+          <span class="cond">觸發條件：翻正並持續 3 日以上</span>
+        </div>
+        <div class="node cold" data-jump="g-srf" tabindex="0" role="button">
+          <span class="step">05</span>
+          <span class="lbl">SRF 暴用 → repo 危機</span>
+          <span class="cond">觸發條件：SRF &gt; $50B（2019/9 級別）</span>
+        </div>
+      </div>
+      <p class="chain-note note-only">這是唯一一條會直接走進 Tier 1 的鏈，也是唯一能讓「資金水管」從綠轉黃的機制。緩衝墊（ON RRP）一旦歸零，縮表接下來會直接咬進準備金。這條鏈與鏈 A 的節點 01 共用同一個起因，兩者會互相加強。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>升級階梯</h3><span class="anno">ESCALATION · 現在在第幾階</span><span class="anno">SECTION D</span></div>
+  <p class="lede note-only">「危機」有幾個標誌：資金斷裂、信用擴張、被迫去槓桿、相關性衝到 1。階梯由下方規則自動判定，取最高成立者。每階右側的刻度是「離觸發還有多遠」：左端＝平常（近兩年中位數，或同一種變動的典型幅度），紅線＝觸發。</p>
+  <div class="breadth-line">整盤亮燈 <b>10</b>／21（警報 2 · 明確壓力 1 · 警示 7） · 30 天前（2026-09-20）6／21</div>
+  <div class="ladder">
+    <div class="rung here">
+      <div class="lv">1</div>
+      <div><h4>折現率／估值重定價</h4></div>
+      <div class="sig">長債殖利率 · 期限溢價 · 曲線形狀</div>
+      <div class="rd t-press">◀ 你在這裡</div>
+    </div>
+    <div class="rung">
+      <div class="lv">2</div>
+      <div><h4>信用事件</h4></div>
+      <div class="sig">HY OAS &gt; 450bps</div>
+      <div class="rd t-ok">現 331bps<span class="nbar" title="HY OAS 331 bps → 450 bps"><b class="" style="left:27%"></b></span></div>
+    </div>
+    <div class="rung">
+      <div class="lv">3</div>
+      <div><h4>去槓桿事件</h4></div>
+      <div class="sig">VIX &gt; 30 · carry unwind · 相關性 = 1</div>
+      <div class="rd t-ok">現 VIX 18.44<span class="nbar" title="VIX 18.44 → 30.00 或 USD/JPY 單日 +0.5% → -2.0%"><b class="" style="left:10%"></b></span></div>
+    </div>
+    <div class="rung">
+      <div class="lv">4</div>
+      <div><h4>資金流動性危機</h4></div>
+      <div class="sig">SOFR−IORB 轉正 · SRF 暴用</div>
+      <div class="rd t-ok">現 -2bps<span class="nbar" title="SOFR − IORB 連續為正 0 天 → 3 天 或 SRF 使用量 $0.0B → $50.0B"><b class="" style="left:0%"></b></span></div>
+    </div>
+    <div class="rung">
+      <div class="lv">5</div>
+      <div><h4>主權信譽危機</h4></div>
+      <div class="sig">標售失敗 · 殖利率升＋美元跌</div>
+      <div class="rd t-ok">未到<span class="nbar" title="30Y 殖利率 5 日 -13 bps → +15 bps 且 DXY 美元指數 5 日 -0.3% → -1.0%"><b class="" style="left:0%"></b></span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h3>升級觸發器</h3><span class="anno">TRIPWIRES · 任一成立即重新評估</span><span class="anno">SECTION E</span></div>
+  <p class="lede note-only">這幾條是獨立條件，不需同時成立。前三條是「長債重定價 → 真危機」的升級訊號；後幾條是盤中引信。</p>
+  <div class="wires">
+    <div class="wire">
+      <div class="anno">升級 · 信用</div>
+      <span class="st t-ok">未觸發</span>
+      <code>HY OAS &gt; 350bps</code>
+      <p>高利率開始咬進企業再融資。這是本次事件從「板塊」變成「系統」的第一個門檻。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">升級 · 水管</div>
+      <span class="st t-ok">未觸發</span>
+      <code>SOFR − IORB 由負轉正並持續 3 日</code>
+      <p>槓桿長債部位開始搶現金。這是第 4 階的入口，也是唯一真正定義流動性危機的訊號。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">升級 · 質變</div>
+      <span class="st t-ok">未觸發</span>
+      <code>30Y ↑ 同時 DXY ↓（5 日）</code>
+      <p>正常的期限溢價上升會吸引外資、美元走強。若殖利率升而美元跌，代表有人在逃離美元資產——不再是利率故事。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 匯率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>USD/JPY 單日 −2%</code>
+      <p>日圓急升＝ carry unwind 啟動。看速度不看水位。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 利率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>10Y／30Y 單日 +10bps</code>
+      <p>即時 risk-off。連續觸發代表期限溢價在失控而非重定價。</p>
+    </div>
+    <div class="wire">
+      <div class="anno">盤中引信 · 波動率</div>
+      <span class="st t-ok">未觸發</span>
+      <code>VIX &gt; 30 或 MOVE &gt; 150</code>
+      <p>進入去槓桿階的門票。MOVE 通常先動。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="cols">
+    <div><h5>本次抓取狀況</h5><ul><li>本次全部指標抓取正常。</li></ul></div>
+    <div><h5>已知資料坑</h5><ul><li>—</li></ul></div>
+    <div><h5>下次檢查重點</h5><ul><li>鏈 A 的下一個節點：企業再融資成本上升（觸發條件：HY OAS &gt; 350bps）</li><li>鏈 B 的下一個節點：日圓急升（觸發條件：USD/JPY 單日 −2% 以上（7/31 盤中 −3.5%，但日收盤 −1.74% 未達標——收盤價會抹平盤中動作））</li><li>鏈 C 的下一個節點：科技／超大規模業者利差跑輸（觸發條件：IG OAS 20 日擴張 &gt; 10bps）</li><li>鏈 D 的下一個節點：準備金下降至稀缺（觸發條件：WRESBAL 20 期變動 &lt; −$200B）</li></ul></div>
+  </div>
+  <p class="disc">本表由 scan.py 自動產生（掃描時間 2026-10-20T00:53:21+0000）。數值取自公開資料源並可能有時間落差或修正，不構成投資建議。閾值需隨 regime 校準；判定為「重定價」不代表不會升級，只代表升級所需的條件目前尚未成立。</p>
+</footer>
+
+</div>
+<script>
+(function(){
+  document.querySelectorAll('.node[data-jump]').forEach(function(n){
+    function go(){
+      var t=document.getElementById(n.dataset.jump);
+      if(!t) return;
+      document.querySelectorAll('tr.hl').forEach(function(r){r.classList.remove('hl')});
+      t.classList.add('hl');
+      t.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    n.addEventListener('click',go);
+    n.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}
+    });
+  });
+
+  var KEY='lrc-show-notes';
+  var btn=document.getElementById('toggle-notes');
+  function apply(on){
+    document.body.classList.toggle('show-notes',on);
+    if(btn)btn.textContent=on?'隱藏說明':'顯示說明';
+  }
+  var saved=null;
+  try{saved=localStorage.getItem(KEY);}catch(e){}
+  apply(saved==='1');
+  if(btn)btn.addEventListener('click',function(){
+    var on=!document.body.classList.contains('show-notes');
+    apply(on);
+    try{localStorage.setItem(KEY,on?'1':'0');}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
